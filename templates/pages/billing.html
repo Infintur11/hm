@@ -1,0 +1,394 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Cashier Desk & Financial Billing</h1>
+    <p class="page-subtitle">Consolidated Invoicing, Multi-Mode Payment Reconciliation, and Thermal Receipt Printing</p>
+  </div>
+  <div style="display:flex; align-items:center; gap:0.75rem;">
+    <label class="form-label" style="margin-bottom:0;" for="invoiceFilterSelect">Filter Status:</label>
+    <select id="invoiceFilterSelect" class="form-select" style="width:180px;">
+      <option value="">All Invoices</option>
+      <option value="UNPAID">Unpaid (Action Required)</option>
+      <option value="PAID">Paid / Cleared</option>
+    </select>
+    <button class="btn btn-outline btn-sm" onclick="loadCashierAnalytics()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <span>Refresh Cashier</span>
+    </button>
+  </div>
+</div>
+
+<!-- Cashier Financial & Pharmacy Lock Alerts Dropdown -->
+<div id="cashierAlertsContainer" style="margin-bottom:1.5rem; display:none;">
+  <!-- Rendered dynamically by billing.js -->
+</div>
+
+<!-- Cashier Station KPI Cards (4 Metrics) -->
+<div class="grid-4" style="margin-bottom:1.75rem;">
+  <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+    <div class="kpi-label">Today's Collections</div>
+    <div id="kpiCashierCollected" class="kpi-value" style="color:var(--success-text);">₹--</div>
+    <div class="kpi-sub">Total payments reconciled</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--danger-border);">
+    <div class="kpi-label">Accounts Receivable (AR)</div>
+    <div id="kpiCashierReceivable" class="kpi-value" style="color:var(--danger-text);">₹--</div>
+    <div class="kpi-sub">Outstanding unpaid patient bills</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+    <div class="kpi-label">Settled Invoices</div>
+    <div id="kpiCashierPaidCount" class="kpi-value">--</div>
+    <div class="kpi-sub">Cleared & receipted</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid #f59e0b;">
+    <div class="kpi-label">Pending Invoices</div>
+    <div id="kpiCashierUnpaidCount" class="kpi-value" style="color:#d97706;">--</div>
+    <div id="kpiCashierUnpaidSub" class="kpi-sub">Awaiting cashier settlement</div>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-header">
+    <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+      <span>Patient Invoice Queue</span>
+    </h3>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <input type="text" id="billingSearchInput" class="form-control" style="width:260px; font-size:var(--font-sm);" placeholder="Search MRN or Patient Name...">
+      <button class="btn btn-outline btn-sm" onclick="loadInvoices()">Refresh</button>
+    </div>
+  </div>
+
+  <div style="padding:0.6rem 1.25rem; background:rgba(37,99,235,0.04); border-bottom:1px solid var(--border-color); display:flex; align-items:center; gap:0.5rem; font-size:var(--font-xs); color:var(--text-muted);">
+    <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    <span><strong>Cashier Compliance Shield:</strong> Clinical medical documentation files, EHR SOAP histories, and lab findings are strictly masked and hidden from cashier lookups. Only financial settlement items are accessible.</span>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="clinical-table">
+      <thead>
+        <tr>
+          <th>Invoice #</th>
+          <th>Patient &amp; MRN</th>
+          <th>Attending Doctor</th>
+          <th>Net Amount</th>
+          <th>Amount Paid</th>
+          <th>Status</th>
+          <th>Payment Mode</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="invoiceTableBody">
+        <!-- Populated by billing.js -->
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<section class="card" style="margin-top:1.5rem;">
+  <div class="card-header">
+    <div><h2 class="card-title">Cash Receipts Awaiting Reconciliation</h2>
+      <p class="page-subtitle" style="margin-top:.25rem;">A recorded receipt does not become commission eligible until its settlement evidence is reconciled.</p></div>
+    <button class="btn btn-outline btn-sm" onclick="loadCashierReconciliation()">Refresh queue</button>
+  </div>
+  <div class="table-wrapper"><table class="clinical-table"><thead><tr><th>Invoice</th><th>Receipt</th><th>Method / Reference</th><th>Received</th><th>Action</th></tr></thead>
+    <tbody id="cashierPaymentReconBody"><tr><td colspan="5">Loading receipts…</td></tr></tbody></table></div>
+</section>
+
+<!-- Modal: Invoice Details & Cashier Payment -->
+<div id="invoiceDetailModal" class="modal-backdrop">
+  <div class="modal-dialog" style="max-width:760px; border-radius:16px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Official Hospital Bill &amp; Receipt</h3>
+        <span id="modalInvNumber" class="badge badge-info" style="margin-top:0.25rem;">INV-2026-XXXX</span>
+      </div>
+      <button class="modal-close" onclick="closeModal('invoiceDetailModal')">&times;</button>
+    </div>
+
+    <form id="paymentForm">
+      <div class="modal-body">
+        <!-- Masked Clinical Data Notice -->
+        <div style="display:flex; align-items:center; gap:0.6rem; background:var(--bg-subtle, #f1f5f9); border:1px solid var(--border-color, #e2e8f0); border-radius:var(--radius-md, 6px); padding:0.6rem 0.85rem; margin-bottom:1rem; font-size:var(--font-xs, 0.75rem); color:var(--text-muted, #64748b);">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="flex-shrink:0;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div>
+            <strong>Protected Health Information Shield:</strong> Clinical medical documentation files and diagnostic records are hidden from cashier lookups.
+          </div>
+        </div>
+
+        <!-- Patient and Attending Doctor Demographics Row -->
+        <div class="grid-2" style="background:#f8fafc; border:1px solid var(--border-color); border-radius:10px; padding:0.75rem 1rem; margin-bottom:1.25rem; font-size:var(--font-sm);">
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">PATIENT DEMOGRAPHICS</span>
+            <strong id="modalPatientInfo" style="color:var(--text-main);">-</strong>
+          </div>
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">ATTENDING / CONSULTING DOCTOR</span>
+            <strong id="modalDoctorInfo" style="color:var(--primary-600, #2563eb);">-</strong>
+          </div>
+        </div>
+
+        <!-- Line Items Table -->
+        <div class="table-wrapper" style="margin-bottom:1.25rem;">
+          <table class="clinical-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Service / Item Description</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="modalInvoiceItemsBody">
+              <!-- Dynamically populated -->
+            </tbody>
+          </table>
+        </div>
+
+        <div style="text-align:right; margin-bottom:1.25rem; font-size:var(--font-base);">
+          <strong>Total Net Payable: </strong>
+          <span id="modalTotalAmount" style="font-size:1.5rem; font-weight:700; color:var(--text-main); margin-left:0.5rem;">₹0.00</span>
+        </div>
+
+        <!-- Payment Inputs (Hidden if already paid) -->
+        <div id="paymentInputsArea" style="background-color:var(--bg-surface-alt); padding:1.25rem; border-radius:12px; border:1px solid var(--border-color);">
+
+          <!-- Patient Billing Segment: Walk-in vs Corporate / Insurance Tie-Up -->
+          <div style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:0.85rem 1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.6rem;">
+              <strong style="font-size:0.85rem; color:#0f172a; display:flex; align-items:center; gap:0.4rem;">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                <span>Patient Billing Category *</span>
+              </strong>
+              <span id="billingSegmentBadge" class="badge badge-info" style="font-size:0.75rem;">Walk-in Private</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.65rem;">
+              <label id="btnSegmentWalkin" style="display:flex; align-items:center; gap:0.5rem; padding:0.55rem 0.75rem; border:2px solid var(--primary-600); background:rgba(37, 99, 235, 0.05); border-radius:8px; cursor:pointer;">
+                <input type="radio" name="billingSegmentRadio" id="radioSegmentWalkin" value="WALK_IN" checked onchange="handleBillingSegmentChange('WALK_IN')">
+                <div>
+                  <strong style="display:block; font-size:0.825rem; color:var(--text-main);">🚶 Walk-in / Private Patient</strong>
+                  <span style="font-size:0.7rem; color:var(--text-muted);">Self-paying individual</span>
+                </div>
+              </label>
+
+              <label id="btnSegmentCorporate" style="display:flex; align-items:center; gap:0.5rem; padding:0.55rem 0.75rem; border:1px solid #cbd5e1; background:#ffffff; border-radius:8px; cursor:pointer;">
+                <input type="radio" name="billingSegmentRadio" id="radioSegmentCorporate" value="CORPORATE_TIEUP" onchange="handleBillingSegmentChange('CORPORATE_TIEUP')">
+                <div>
+                  <strong style="display:block; font-size:0.825rem; color:var(--text-main);">🏢 Corporate / Insurance Tie-up</strong>
+                  <span style="font-size:0.7rem; color:var(--text-muted);">Cashless / Monthly Credit Limit</span>
+                </div>
+              </label>
+            </div>
+
+            <!-- Corporate / Insurance Tie-up Form Fields -->
+            <div id="corporateTieupFields" style="display:none; margin-top:0.75rem; padding-top:0.75rem; border-top:1px dashed #cbd5e1;">
+              <div class="grid-2" style="margin-bottom:0.5rem;">
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" for="corporateClientSelect" style="font-weight:600; font-size:0.75rem;">Select Corporate / Insurance Partner *</label>
+                  <select id="corporateClientSelect" class="form-select form-select-sm" onchange="handleCorporatePartnerSelect()">
+                    <option value="">-- Choose Corporate / Insurance Partner --</option>
+                  </select>
+                </div>
+
+                <div class="form-group" style="margin-bottom:0;">
+                  <label class="form-label" for="corporatePolicyIdInput" style="font-weight:600; font-size:0.75rem;">Policy # / TPA Card ID / Employee ID *</label>
+                  <input type="text" id="corporatePolicyIdInput" class="form-control form-control-sm" placeholder="e.g. STAR-98214 or EMP-1049">
+                </div>
+              </div>
+
+              <!-- Live Monthly Credit Limit & Remaining Balance Notice -->
+              <div id="corporateCreditInfoBox" style="display:none; background:#f0fdf4; border:1px solid #bbf7d0; border-radius:6px; padding:0.4rem 0.65rem; font-size:0.75rem; color:#166534; display:flex; justify-content:space-between; align-items:center;">
+                <div>
+                  <span>Partner: <strong id="corporateCreditPartnerName">-</strong></span>
+                </div>
+                <div>
+                  <span>Available Credit: <strong id="corporateCreditAvailableBadge" style="color:#15803d;">₹0.00</strong></span>
+                  <span id="corporateCreditTotalLimit" style="color:#6b7280; font-size:0.7rem; margin-left:0.2rem;">/ Limit: ₹0.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid-2" style="margin-bottom:1rem;">
+            <div class="form-group">
+              <label class="form-label" for="amountToPayInput">Amount to Collect (₹) *</label>
+              <input type="number" step="0.5" id="amountToPayInput" class="form-control" required oninput="recalculateCashDenominations()">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label" for="paymentMethodSelect">Payment Mode *</label>
+              <select id="paymentMethodSelect" class="form-select" required onchange="handlePaymentMethodChange()">
+                <option value="CASH">Cash (with Currency Denomination Tally)</option>
+                <option value="UPI">UPI / QR Code (16-digit UTR)</option>
+                <option value="CHEQUE">Bank Cheque (Cheque # &amp; Bank)</option>
+                <option value="INSURANCE">Insurance / Corporate Credit (Cashless)</option>
+                <option value="CARD">Credit / Debit Card</option>
+                <option value="SPLIT">Split / Multi-Mode Payment (e.g. UPI + Cash)</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Dynamic Panel 1: CASH Currency Denomination Tally -->
+          <div id="cashDenomPanel" style="background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <strong style="font-size:0.875rem; color:#0f172a; display:flex; align-items:center; gap:0.4rem;">
+                <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="12" x="2" y="6" rx="2"/><circle cx="12" cy="12" r="2"/></svg>
+                <span>Cash Currency Denomination Tally (INR ₹)</span>
+              </strong>
+              <span id="denomTallyBadge" class="badge badge-warning" style="font-size:0.75rem;">Tally Pending</span>
+            </div>
+
+            <div style="display:grid; grid-template-columns:repeat(3, 1fr); gap:0.6rem; font-size:0.8rem;">
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹500 &times;</label>
+                <input type="number" min="0" id="denom_500" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹200 &times;</label>
+                <input type="number" min="0" id="denom_200" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹100 &times;</label>
+                <input type="number" min="0" id="denom_100" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹50 &times;</label>
+                <input type="number" min="0" id="denom_50" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹20 &times;</label>
+                <input type="number" min="0" id="denom_20" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹10 &times;</label>
+                <input type="number" min="0" id="denom_10" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹5 &times;</label>
+                <input type="number" min="0" id="denom_5" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹2 &times;</label>
+                <input type="number" min="0" id="denom_2" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+              <div style="display:flex; align-items:center; gap:0.4rem; background:#f8fafc; padding:0.4rem 0.6rem; border-radius:6px; border:1px solid #e2e8f0;">
+                <label style="min-width:48px; font-weight:700;">₹1 &times;</label>
+                <input type="number" min="0" id="denom_1" class="form-control form-control-sm" style="height:28px; padding:2px 6px;" placeholder="0" oninput="recalculateCashDenominations()">
+              </div>
+            </div>
+
+            <!-- Tally Summary Box -->
+            <div style="margin-top:0.85rem; padding:0.6rem 0.85rem; background:#f1f5f9; border-radius:8px; display:flex; justify-content:space-between; align-items:center; font-size:0.825rem;">
+              <div>
+                <span style="color:#64748b;">Total Tendered:</span>
+                <strong id="denomTotalTendered" style="color:#0f172a; margin-left:4px;">₹0.00</strong>
+              </div>
+              <div>
+                <span style="color:#64748b;">Return Change:</span>
+                <strong id="denomChangeToReturn" style="color:#059669; margin-left:4px;">₹0.00</strong>
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Panel 2: UPI 16-Digit Transaction UTR -->
+          <div id="upiPanel" style="display:none; background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="upiTxnIdInput">16-Digit UPI Transaction ID / UTR *</label>
+              <input type="text" id="upiTxnIdInput" class="form-control" maxlength="22" placeholder="e.g. 4289012345678901" style="letter-spacing:0.04em;">
+              <small class="form-text" style="color:var(--text-muted); font-size:0.75rem;">Enter the bank reference UTR ID from Google Pay, PhonePe, Paytm, or BHIM.</small>
+            </div>
+          </div>
+
+          <!-- Dynamic Panel 3: Cheque Number & Bank Name -->
+          <div id="chequePanel" style="display:none; background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div class="grid-2">
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="chequeNumberInput">Cheque Number *</label>
+                <input type="text" id="chequeNumberInput" class="form-control" placeholder="e.g. 004521">
+              </div>
+              <div class="form-group" style="margin-bottom:0;">
+                <label class="form-label" for="bankNameInput">Issuing Bank Name *</label>
+                <input type="text" id="bankNameInput" class="form-control" placeholder="e.g. State Bank of India, HDFC Bank">
+              </div>
+            </div>
+          </div>
+
+          <!-- Dynamic Panel 4: Insurance / TPA -->
+          <div id="insurancePanel" style="display:none; background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div class="grid-2" style="margin-bottom:0.5rem;">
+              <div class="form-group">
+                <label class="form-label" for="insProviderInput">Insurance / TPA Partner *</label>
+                <input type="text" id="insProviderInput" class="form-control" placeholder="e.g. Star Health, Max Bupa, ICICI Lombard">
+              </div>
+              <div class="form-group">
+                <label class="form-label" for="insPolicyInput">Policy / TPA Card ID *</label>
+                <input type="text" id="insPolicyInput" class="form-control" placeholder="e.g. POL-98765432">
+              </div>
+            </div>
+            <div style="font-size:0.75rem; color:#64748b; background:#f8fafc; padding:0.5rem; border-radius:6px;">
+              ℹ️ Admin Insurance master tie-up &amp; pre-auth claim management interface configured.
+            </div>
+          </div>
+
+          <!-- Dynamic Panel 5: Multi-Mode Split Payment Builder -->
+          <div id="splitPanel" style="display:none; background:#ffffff; border:1px solid #cbd5e1; border-radius:10px; padding:1rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <div>
+                <strong style="font-size:0.875rem; color:#0f172a;">Multi-Mode Split Payment Allocations</strong>
+                <p style="font-size:0.75rem; color:var(--text-muted); margin:2px 0 0 0;">Combine UPI, Cash, Cheque &amp; Insurance for split settlements</p>
+              </div>
+              <button type="button" class="btn btn-outline btn-sm" onclick="addSplitRow()" style="font-size:0.75rem;">+ Add Payment Mode</button>
+            </div>
+
+            <div id="splitRowsContainer" style="display:flex; flex-direction:column; gap:0.6rem; margin-bottom:0.85rem;">
+              <!-- Dynamic split rows -->
+            </div>
+
+            <div style="display:flex; justify-content:space-between; align-items:center; background:#f8fafc; padding:0.65rem 0.85rem; border-radius:8px; font-size:0.825rem;">
+              <div>
+                <span>Total Allocated: <strong id="splitAllocatedTotal">₹0.00</strong></span>
+              </div>
+              <div>
+                <span>Remaining: <strong id="splitRemainingBalance" style="color:#ef4444;">₹0.00</strong></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Fallback generic reference (for card) -->
+          <div id="genericRefPanel" style="display:none;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="transactionRefInput">Card Last 4 / Auth Code</label>
+              <input type="text" id="transactionRefInput" class="form-control" placeholder="e.g. Card Last 4 digits">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('invoiceDetailModal')">Close</button>
+        <button type="button" id="btnPrintReceipt" class="btn btn-teal" onclick="printCurrentReceipt()" style="display:none; align-items:center; gap:0.4rem;">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <span>Print Thermal Receipt</span>
+        </button>
+        <button type="submit" id="btnCollect" class="btn btn-success" style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+          <span>Collect Payment &amp; Clear Bill</span>
+        </button>
+
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/billing.js"></script>
+<script src="/static/js/commission.js"></script>
+{% endblock %}

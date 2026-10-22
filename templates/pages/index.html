@@ -1,0 +1,118 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title" style="display:flex; align-items:center; gap:0.5rem;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="color:var(--primary-600);"><path d="M3 21h18M5 21V7l8-4 6 4v14M9 10h6M12 7v6"/></svg>
+      <span>Hospital Operational Portals</span>
+    </h1>
+  </div>
+</div>
+
+<!-- Core Clinical Portals Grid -->
+<div class="grid-3" style="margin-bottom:2.5rem;">
+  {% if not user or user.role in ['SUPER_ADMIN', 'RECEPTIONIST'] %}
+  <!-- Reception -->
+  <div class="card portal-card" style="border-top:4px solid #2563eb;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#2563eb;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span class="badge badge-info">Front Desk</span>
+      </div>
+      <h3 class="card-title">Reception &amp; OPD Desk</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        Instant multi-parameter patient lookup (<code>Ctrl+K</code>), 30s walk-in registration, doctor slot conflict prevention, and token slips.
+      </p>
+    </div>
+    <a href="/reception" class="btn btn-primary" style="width:100%;">Open Reception Desk &rarr;</a>
+  </div>
+  {% endif %}
+
+  {% if not user or user.role in ['SUPER_ADMIN', 'DOCTOR'] %}
+  <!-- Doctor EHR -->
+  <div class="card portal-card" style="border-top:4px solid #059669;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#059669;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <span class="badge badge-success">Consultation</span>
+      </div>
+      <h3 class="card-title">Doctor EHR Consultation</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        SOAP clinical notes, ICD-10 diagnostic coding, 1-click clinical treatment templates, and automated lab and pharmacy order routing.
+      </p>
+    </div>
+    <a href="/doctor" class="btn btn-success" style="width:100%;">Open Doctor Consultation &rarr;</a>
+  </div>
+  {% endif %}
+
+  {% if not user or user.role in ['SUPER_ADMIN', 'NURSE'] %}
+  <!-- Nurse Station -->
+  <div class="card portal-card" style="border-top:4px solid #d97706;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#d97706;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/></svg>
+        <span class="badge badge-warning">Inpatient &amp; Wards</span>
+      </div>
+      <h3 class="card-title">Nurse &amp; Bed Matrix</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        Triage vitals with automated BMI &amp; hypertension flags, live 3-state bed turnaround matrix (Vacant/Occupied/Cleaning), and bedside IPMO charts.
+      </p>
+    </div>
+    <a href="/nurse" class="btn btn-amber" style="width:100%;">Open Nurse Station &rarr;</a>
+  </div>
+  {% endif %}
+
+  {% if not user or user.role in ['SUPER_ADMIN', 'LAB_TECH', 'LAB'] %}
+  <!-- Laboratory -->
+  <div class="card portal-card" style="border-top:4px solid #7c3aed;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#7c3aed;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.31L4.69 19.1A2 2 0 0 0 6.41 22h11.18a2 2 0 0 0 1.72-2.9L14 9.31V2"/><line x1="8.5" y1="2" x2="15.5" y2="2"/></svg>
+        <span class="badge badge-info">Diagnostics</span>
+      </div>
+      <h3 class="card-title">Pathology &amp; Diagnostics</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        Diagnostic test worklists, barcode sample verification (<code>SMP-XXXXX</code>), reference range verification, and panic value flags.
+      </p>
+    </div>
+    <a href="/lab" class="btn btn-purple" style="width:100%;">Open Pathology Lab &rarr;</a>
+  </div>
+  {% endif %}
+
+  {% if not user or user.role in ['SUPER_ADMIN', 'PHARMACIST'] %}
+  <!-- Pharmacy -->
+  <div class="card portal-card" style="border-top:4px solid #dc2626;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#dc2626;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+        <span class="badge badge-danger">Closed-Loop</span>
+      </div>
+      <h3 class="card-title">Closed-Loop Pharmacy</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        Zero-leakage dispensary queue locked until cashier payment clearance, automatic formulary decrement, and emergency override logging.
+      </p>
+    </div>
+    <a href="/pharmacy" class="btn btn-danger" style="width:100%;">Open Dispensary &rarr;</a>
+  </div>
+  {% endif %}
+
+  {% if not user or user.role in ['SUPER_ADMIN', 'CASHIER'] %}
+  <!-- Cashier & Billing -->
+  <div class="card portal-card" style="border-top:4px solid #ea580c;">
+    <div>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+        <svg class="icon icon-lg" style="color:#ea580c;" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+        <span class="badge badge-neutral">Cashier Desk</span>
+      </div>
+      <h3 class="card-title">Cashier &amp; Invoicing</h3>
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin:0.5rem 0 1.25rem 0; line-height:1.5;">
+        Consolidated billing across consultations, medications, lab tests, and bed stays. Multi-mode payment reconciliation (UPI/Cash/Card) and thermal receipts.
+      </p>
+    </div>
+    <a href="/billing" class="btn btn-orange" style="width:100%;">Open Cashier Desk &rarr;</a>
+  </div>
+  {% endif %}
+</div>
+
+{% endblock %}

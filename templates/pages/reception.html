@@ -1,0 +1,507 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header" style="flex-wrap:wrap; gap:1rem;">
+  <div>
+    <h1 class="page-title">Reception Desk &amp; OPD Triage</h1>
+    <p class="page-subtitle">Fast patient lookup, 30-second registration, and token-based slot booking</p>
+  </div>
+  <div style="display:flex; align-items:center; gap:0.6rem; flex-wrap:wrap;">
+    <span class="badge badge-info">Press Ctrl+K to Search</span>
+    <button class="btn btn-outline btn-sm" onclick="loadReceptionAnalytics()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <span>Refresh Queue Stats</span>
+    </button>
+  </div>
+</div>
+
+<!-- Receptionist Actionable Alerts Dropdown Container -->
+<div id="receptionAlertsContainer" style="margin-bottom:1.5rem; display:none;">
+  <!-- Rendered dynamically by reception.js -->
+</div>
+
+<!-- Reception OPD KPI Cards (4 Metrics) -->
+<div class="grid-4" style="margin-bottom:1.75rem;">
+  <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+    <div class="kpi-label">Today's OPD Bookings</div>
+    <div id="kpiRecAppts" class="kpi-value">--</div>
+    <div class="kpi-sub">Total tokens issued today</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid #f59e0b;">
+    <div class="kpi-label">In Waiting Area</div>
+    <div id="kpiRecWaiting" class="kpi-value" style="color:#d97706;">--</div>
+    <div class="kpi-sub">Checked-in patients waiting</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+    <div class="kpi-label">Completed Consults</div>
+    <div id="kpiRecCompleted" class="kpi-value" style="color:var(--success-text);">--</div>
+    <div class="kpi-sub">Doctor encounters finished</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid #8b5cf6;">
+    <div class="kpi-label">Registered Patients</div>
+    <div id="kpiRecPatients" class="kpi-value">--</div>
+    <div class="kpi-sub">Active hospital MRN records</div>
+  </div>
+</div>
+
+<!-- Doctor OPD Capacity Availability Card -->
+<div class="card" id="doctorCapacityCard" style="margin-bottom:1.75rem; display:none;">
+  <div class="card-header" style="margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+    <div>
+      <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        <span>Live Doctor OPD Slot Capacity &amp; Walk-in Guide</span>
+      </h3>
+      <p class="section-subtitle" style="margin-top:0.2rem;">Real-time booking capacity across active consulting physicians</p>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <button type="button" class="btn btn-outline btn-sm" onclick="toggleCorporateCreditQuickView()" style="display:inline-flex; align-items:center; gap:0.35rem; font-size:0.75rem;">
+        <span>🏢 Tie-Up Credit Limits</span>
+      </button>
+      <span class="badge badge-neutral">Auto-Updates on Booking</span>
+    </div>
+  </div>
+  
+  <div id="doctorCapacityBars" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px, 1fr)); gap:1rem; padding:0.5rem 0;">
+    <!-- Rendered dynamically by reception.js -->
+  </div>
+
+  <!-- Collapsible Corporate Credit Quick Directory for Receptionist -->
+  <div id="corporateCreditQuickPanel" style="display:none; margin-top:1rem; padding-top:1rem; border-top:1px dashed var(--border-subtle);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.5rem;">
+      <strong style="font-size:var(--font-xs); color:var(--text-main); text-transform:uppercase; letter-spacing:0.04em;">Contracted Insurance &amp; Corporate Credit Balances (Live Tally)</strong>
+      <span style="font-size:0.75rem; color:var(--text-muted);">Real-time available credit for cashless desk admission</span>
+    </div>
+    <div id="receptionCorpCardsGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:0.75rem;">
+      <!-- Populated dynamically by reception.js -->
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- Left Column: Quick Patient Registration (< 45 sec) -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span>Fast Patient Registration</span>
+      </h3>
+      <span class="badge badge-neutral" id="regCategoryBadge">Walk-in</span>
+    </div>
+    
+    <form id="quickRegisterForm">
+      <!-- Patient Billing Category: Walk-in vs Corporate Tie-up -->
+      <div style="margin-bottom:1rem; background:var(--bg-surface-alt); border-radius:8px; padding:0.75rem; border:1px solid var(--border-subtle);">
+        <label class="form-label" style="margin-bottom:0.4rem; font-weight:700;">Patient Billing Category *</label>
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:0.5rem;">
+          <label id="btnRegWalkin" style="cursor:pointer; display:flex; align-items:center; gap:0.5rem; background:var(--bg-surface); border:2px solid var(--primary-600); border-radius:6px; padding:0.5rem 0.75rem; transition:border-color 0.15s;">
+            <input type="radio" name="regBillingCategory" value="WALK_IN" checked onchange="onRegCategoryToggle(this.value)">
+            <div>
+              <strong style="display:block; font-size:var(--font-xs);">🚶 Walk-in / Private</strong>
+              <span style="font-size:0.7rem; color:var(--text-muted);">Self-paying individual</span>
+            </div>
+          </label>
+          <label id="btnRegCorporate" style="cursor:pointer; display:flex; align-items:center; gap:0.5rem; background:var(--bg-surface); border:1px solid var(--border-subtle); border-radius:6px; padding:0.5rem 0.75rem; transition:border-color 0.15s;">
+            <input type="radio" name="regBillingCategory" value="CORPORATE_TIEUP" onchange="onRegCategoryToggle(this.value)">
+            <div>
+              <strong style="display:block; font-size:var(--font-xs);">🏢 Corporate / Insurance</strong>
+              <span style="font-size:0.7rem; color:var(--text-muted);">Cashless credit partner</span>
+            </div>
+          </label>
+        </div>
+
+        <!-- Corporate Tie-up Partner Selector & Live Credit Indicator -->
+        <div id="regCorporateFieldsArea" style="display:none; margin-top:0.75rem; padding-top:0.75rem; border-top:1px dashed var(--border-subtle);">
+          <div class="grid-2" style="margin-bottom:0.5rem;">
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="regCorporateClientSelect">Select Corporate / Insurance Partner *</label>
+              <select id="regCorporateClientSelect" class="form-select" onchange="onRegCorporatePartnerSelect()">
+                <option value="">-- Choose Corporate Partner / TPA --</option>
+              </select>
+            </div>
+            <div class="form-group" style="margin-bottom:0;">
+              <label class="form-label" for="regCorporatePolicyId">Policy # / TPA Card / Employee ID *</label>
+              <input type="text" id="regCorporatePolicyId" class="form-control" placeholder="e.g. STAR-POL-2026-9912">
+            </div>
+          </div>
+
+          <!-- Live Available Credit Status Box for Receptionist -->
+          <div id="regCorporateCreditBox" style="display:none; background:#ecfdf5; border:1px solid #6ee7b7; border-radius:6px; padding:0.6rem 0.75rem; margin-top:0.4rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="font-size:0.78rem; color:#065f46;" id="regCorpPartnerName">Partner</strong>
+                <span class="badge badge-info" id="regCorpCategoryBadge" style="font-size:0.68rem; margin-left:0.35rem;">TPA</span>
+              </div>
+              <div style="text-align:right;">
+                <span style="font-size:0.7rem; color:#047857;">Available Credit Left:</span>
+                <strong id="regCorpAvailableCredit" style="font-size:0.95rem; color:#065f46; margin-left:0.3rem;">₹0.00</strong>
+              </div>
+            </div>
+            <div style="margin-top:4px; font-size:0.72rem; color:#047857; display:flex; justify-content:space-between;">
+              <span id="regCorpUtilizedText">Utilized: ₹0 / Limit: ₹0</span>
+              <span style="font-weight:600;">✓ Cashless Pre-Auth Permitted</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="grid-2">
+        <div class="form-group">
+          <label class="form-label" for="regFullName">Full Name *</label>
+          <input type="text" id="regFullName" name="fullName" class="form-control" placeholder="e.g. John Doe" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regPhone">Mobile Number *</label>
+          <input type="tel" id="regPhone" name="phoneNumber" class="form-control" placeholder="10-digit number" required>
+        </div>
+      </div>
+
+      <div class="grid-3">
+        <div class="form-group">
+          <label class="form-label" for="regAge">Age *</label>
+          <input type="number" id="regAge" name="age" class="form-control" placeholder="Years" min="0" max="125" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regGender">Gender *</label>
+          <select id="regGender" name="gender" class="form-select" required>
+            <option value="MALE">Male</option>
+            <option value="FEMALE">Female</option>
+            <option value="OTHER">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regBlood">Blood Group</label>
+          <select id="regBlood" name="bloodGroup" class="form-select">
+            <option value="">Unknown</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regAllergies">Known Drug Allergies (Optional)</label>
+        <input type="text" id="regAllergies" name="allergies" class="form-control" placeholder="e.g. Penicillin, Aspirin">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="regReferredBy">Referred By Doctor (Optional)</label>
+        <select id="regReferredBy" name="referred_by_doctor_id" class="form-select">
+          <option value="">No Doctor Referral (Direct Walk-in)</option>
+          {% for doc in doctors %}
+          <option value="{{ doc.id }}">{{ doc.full_name }} ({{ doc.department or 'General' }})</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width:100%;">
+        + Register & Assign MRN
+      </button>
+    </form>
+  </div>
+
+  <!-- Right Column: Universal Search & Patient Selection -->
+  <div class="card">
+    <div class="card-header">
+      <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <span>Patient Directory</span>
+      </h3>
+      <div class="search-box" style="width:260px;">
+        <span class="search-icon"><svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <input type="text" id="patientSearchInput" class="form-control" placeholder="Phone, Aadhaar, MRN, Name">
+        <span class="search-shortcut">Ctrl+K</span>
+      </div>
+    </div>
+
+    <div class="table-wrapper" style="max-height:360px;">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>MRN</th>
+            <th>Name</th>
+            <th>Phone</th>
+            <th>Age / Sex</th>
+            <th>Blood</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="patientTableBody">
+          <!-- Populated dynamically by reception.js -->
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Booking Area (Triggers when patient is selected) -->
+<div id="bookingCard" class="card" style="margin-top:1.5rem;">
+  <div class="card-header">
+    <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+      <span>Book Doctor Appointment &amp; Issue Token</span>
+    </h3>
+    <div id="selectedPatientBanner" style="display:none;">
+      <span class="badge badge-success">Selected: <span id="selectedPatientName">-</span></span>
+    </div>
+  </div>
+
+  <form id="bookingForm">
+    <input type="hidden" id="selectedPatientId" name="patientId">
+
+    <div class="grid-4">
+      <div class="form-group">
+        <label class="form-label" for="doctorSelect">Consulting Doctor *</label>
+        <select id="doctorSelect" name="doctorSelect" class="form-select" required>
+          <option value="">-- Choose Doctor --</option>
+          {% for doc in doctors %}
+            <option value="{{ doc.id }}" data-dept="{{ doc.department }}">
+              {% if doc.full_name.startswith('Dr.') %}{{ doc.full_name }}{% else %}Dr. {{ doc.full_name }}{% endif %} ({{ doc.department }}) - ₹{{ doc.consultation_fee }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="appointmentDate">Date *</label>
+        <input type="date" id="appointmentDate" name="appointmentDate" class="form-control" value="{{ today }}" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="timeSlot">Time Slot *</label>
+        <select id="timeSlot" name="timeSlot" class="form-select" required>
+          <option value="09:00 - 09:15">09:00 - 09:15 AM</option>
+          <option value="09:15 - 09:30">09:15 - 09:30 AM</option>
+          <option value="09:30 - 09:45">09:30 - 09:45 AM</option>
+          <option value="10:00 - 10:15">10:00 - 10:15 AM</option>
+          <option value="10:15 - 10:30">10:15 - 10:30 AM</option>
+          <option value="11:00 - 11:15">11:00 - 11:15 AM</option>
+          <option value="11:30 - 11:45">11:30 - 11:45 AM</option>
+          <option value="14:00 - 14:15">02:00 - 02:15 PM</option>
+          <option value="14:30 - 14:45">02:30 - 02:45 PM</option>
+          <option value="15:00 - 15:15">03:00 - 03:15 PM</option>
+          <option value="16:00 - 16:15">04:00 - 04:15 PM</option>
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="reasonForVisit">Reason for Visit</label>
+        <input type="text" id="reasonForVisit" name="reasonForVisit" class="form-control" placeholder="e.g. Chest pain, Fever">
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:flex-end;">
+      <button type="submit" class="btn btn-primary">
+        Confirm Booking &amp; Print Token Receipt &rarr;
+      </button>
+    </div>
+  </form>
+</div>
+
+<!-- Diagnostic Reports Dispatch & Patient Delivery Desk -->
+<div class="card" style="margin-top:2rem;" id="reportsDispatchSection">
+  <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <span>Diagnostic Reports Dispatch &amp; Patient Delivery Desk</span>
+      </h3>
+      <p class="section-subtitle" style="margin-top:0.25rem;">
+        Track doctor verification &amp; cashier billing clearance. Dispatch verified diagnostic reports instantly via WhatsApp, Email &amp; SMS.
+      </p>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.75rem;">
+      <input type="text" id="dispatchSearchInput" class="form-control" style="width:240px; font-size:var(--font-sm);" placeholder="Search MRN or Patient..." onkeyup="filterDispatchQueue()">
+      <button class="btn btn-outline btn-sm" onclick="loadDispatchQueue()">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span>Refresh Queue</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="clinical-table">
+      <thead>
+        <tr>
+          <th>Order # / Barcode</th>
+          <th>Patient &amp; MRN</th>
+          <th>Investigation</th>
+          <th>Consulting Doctor</th>
+          <th>Billing Status</th>
+          <th>Doctor Sign-Off</th>
+          <th>Dispatch &amp; Delivery</th>
+          <th>Action</th>
+        </tr>
+      </thead>
+      <tbody id="dispatchTableBody">
+        <tr><td colspan="8" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading diagnostic dispatch queue...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- Adorable Appointment Confirmed Modal -->
+<div class="modal-backdrop" id="appointmentConfirmedModal">
+  <div class="modal-dialog" style="max-width:520px; border-radius:18px; box-shadow:0 25px 50px -12px rgba(15, 23, 42, 0.25); overflow:hidden; border:none;">
+    <div style="background:linear-gradient(135deg, #059669 0%, #10b981 100%); color:#ffffff; padding:1.75rem 1.5rem 1.25rem 1.5rem; text-align:center; position:relative;">
+      <div style="width:58px; height:58px; background:rgba(255,255,255,0.22); border-radius:50%; display:inline-flex; align-items:center; justify-content:center; margin-bottom:0.75rem; backdrop-filter:blur(4px);">
+        <svg style="width:32px; height:32px; stroke:#ffffff; stroke-width:3; fill:none;" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+      </div>
+      <h2 style="font-size:1.35rem; font-weight:700; margin:0; letter-spacing:-0.01em;">Appointment Confirmed!</h2>
+      <p style="font-size:0.875rem; opacity:0.92; margin:0.35rem 0 0 0;">Token receipt generated &amp; assigned to queue</p>
+      <button class="modal-close" onclick="closeModal('appointmentConfirmedModal')" style="position:absolute; top:14px; right:16px; color:#ffffff; font-size:1.5rem; opacity:0.85;">&times;</button>
+    </div>
+
+    <div class="modal-body" style="padding:1.5rem;">
+      <!-- Big Token Badge -->
+      <div style="text-align:center; margin-bottom:1.25rem;">
+        <span style="font-size:0.75rem; font-weight:700; text-transform:uppercase; color:var(--text-muted); letter-spacing:0.05em; display:block; margin-bottom:0.25rem;">Today's OPD Token</span>
+        <div id="modalTokenBadge" style="display:inline-block; font-size:2rem; font-weight:800; color:#059669; background:#ecfdf5; border:2px dashed #059669; padding:0.3rem 1.75rem; border-radius:12px; letter-spacing:0.02em;">
+          #--
+        </div>
+      </div>
+
+      <!-- Friendly Info Box -->
+      <div style="background:var(--bg-subtle, #f8fafc); border:1px solid var(--border-color, #e2e8f0); border-radius:12px; padding:1rem 1.25rem; margin-bottom:1.25rem;">
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:0.85rem; font-size:0.875rem;">
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">PATIENT</span>
+            <strong id="modalPatientName" style="color:var(--text-main);">-</strong>
+            <span id="modalPatientMrn" style="display:block; font-size:0.75rem; color:#64748b;">MRN: -</span>
+          </div>
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">CONSULTING DOCTOR</span>
+            <strong id="modalDoctorName" style="color:var(--primary-600, #2563eb);">-</strong>
+            <span id="modalDoctorDept" style="display:block; font-size:0.75rem; color:#64748b;">-</span>
+          </div>
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">DATE &amp; TIME SLOT</span>
+            <span id="modalSlotTime" style="font-weight:600; color:var(--text-main);">-</span>
+          </div>
+          <div>
+            <span style="color:var(--text-muted); font-size:0.75rem; display:block;">CONSULTATION FEE</span>
+            <span id="modalConsultFee" style="font-weight:700; color:#059669;">₹--</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Non-technical plain guidance -->
+      <div style="display:flex; align-items:flex-start; gap:0.6rem; background:#eff6ff; border:1px solid #bfdbfe; border-radius:10px; padding:0.75rem 1rem; margin-bottom:1.5rem; font-size:0.825rem; color:#1e40af; line-height:1.45;">
+        <svg style="width:20px; height:20px; flex-shrink:0; stroke:#2563eb; stroke-width:2; fill:none; margin-top:2px;" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        <div>
+          <strong>Next Step for Patient:</strong> Please direct the patient to the OPD Waiting Lounge outside Doctor's consultation chamber. The live queue display will call their token number.
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; gap:0.75rem; justify-content:flex-end;">
+        <button type="button" class="btn btn-outline" onclick="printAppointmentTokenSlip()" style="display:inline-flex; align-items:center; gap:0.4rem;">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+          <span>Print Token Slip</span>
+        </button>
+        <button type="button" class="btn btn-primary" onclick="closeModal('appointmentConfirmedModal')" style="padding:0.6rem 1.4rem;">
+          Done / Next Patient &rarr;
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Dispatch Channels Selector -->
+<div class="modal-backdrop" id="dispatchChannelsModal">
+  <div class="modal-dialog" style="max-width:500px; border-radius:16px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z"/></svg>
+        <span>Dispatch Verified Diagnostic Report</span>
+      </h3>
+      <button class="modal-close" onclick="closeModal('dispatchChannelsModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="dispatchOrderId">
+      <p style="font-size:var(--font-sm); color:var(--text-muted); margin-bottom:1rem;">
+        Report has been authenticated and approved by the consulting doctor. Select the channels to send the report instantly to the patient:
+      </p>
+
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0.75rem; margin-bottom:1.25rem;">
+        <label style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-subtle); border:1px solid var(--border-color); padding:0.65rem; border-radius:8px; cursor:pointer;">
+          <input type="checkbox" id="chkWhatsApp" checked style="accent-color:#25d366; width:18px; height:18px;">
+          <span style="font-size:0.875rem; font-weight:600; color:#128c7e;">WhatsApp</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-subtle); border:1px solid var(--border-color); padding:0.65rem; border-radius:8px; cursor:pointer;">
+          <input type="checkbox" id="chkEmail" checked style="accent-color:#2563eb; width:18px; height:18px;">
+          <span style="font-size:0.875rem; font-weight:600; color:#2563eb;">Email</span>
+        </label>
+        <label style="display:flex; align-items:center; gap:0.5rem; background:var(--bg-subtle); border:1px solid var(--border-color); padding:0.65rem; border-radius:8px; cursor:pointer;">
+          <input type="checkbox" id="chkSMS" checked style="accent-color:#8b5cf6; width:18px; height:18px;">
+          <span style="font-size:0.875rem; font-weight:600; color:#8b5cf6;">SMS</span>
+        </label>
+      </div>
+
+      <div class="form-group" style="margin-bottom:0.85rem;">
+        <label class="form-label" for="dispatchPhoneInput">Recipient Mobile Number</label>
+        <input type="tel" id="dispatchPhoneInput" class="form-control" placeholder="10-digit phone number">
+      </div>
+
+      <div class="form-group" style="margin-bottom:1.25rem;">
+        <label class="form-label" for="dispatchEmailInput">Recipient Email Address</label>
+        <input type="email" id="dispatchEmailInput" class="form-control" placeholder="patient@example.com">
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:0.6rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('dispatchChannelsModal')">Cancel</button>
+        <button type="button" class="btn btn-primary" onclick="submitDispatchReport()" id="btnSubmitDispatch">
+          Send Verified Report Now
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Patient Demographics & Masked EHR Record -->
+<div class="modal-backdrop" id="patientDemographicsModal">
+  <div class="modal-dialog" style="max-width:540px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="7" r="4"/><path d="M5 21v-2a7 7 0 0 1 14 0v2"/></svg>
+        <span>Patient Demographics &amp; EHR Access Guard</span>
+      </h3>
+      <button class="modal-close" onclick="closeModal('patientDemographicsModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="demographicsContent" style="margin-bottom:1rem;">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Masked EHR Clinical Notice -->
+      <div class="card" style="border:1px solid var(--border-color); background:var(--bg-subtle); padding:0.85rem; border-radius:var(--radius-md);">
+        <div style="font-weight:600; font-size:var(--font-sm); display:flex; align-items:center; gap:0.4rem; color:var(--text-main);">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span>Masked EHR History Data</span>
+        </div>
+        <p style="font-size:var(--font-xs); color:var(--text-muted); margin-top:0.35rem; line-height:1.4;">
+          Medical diagnoses, clinical symptoms, case histories, and lab results are hidden from view. Receptionist credentials permit demographic registration and appointment token generation only.
+        </p>
+      </div>
+
+      <div class="modal-footer" style="margin-top:1rem; display:flex; justify-content:flex-end; gap:0.5rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('patientDemographicsModal')">Close</button>
+        <button type="button" class="btn btn-primary" id="btnSelectFromModal">Select for Booking</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/reception.js"></script>
+{% endblock %}

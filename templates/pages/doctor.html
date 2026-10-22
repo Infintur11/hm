@@ -1,0 +1,433 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Doctor Consultation & Electronic Health Record (EHR)</h1>
+    <p class="page-subtitle">Review today's patients, their history and investigation results, then record each consultation.</p>
+  </div>
+  <div style="display:flex; align-items:center; gap:0.75rem;">
+    {% if user.role == 'DOCTOR' %}
+      <span class="page-subtitle">Today's patients</span>
+    {% else %}
+      <label class="form-label" style="margin-bottom:0;" for="doctorQueueSelect">View doctor's queue</label>
+      <select id="doctorQueueSelect" class="form-select" style="width:250px;">
+        {% for doc in doctors %}
+          <option value="{{ doc.id }}">{% if doc.full_name.startswith('Dr.') %}{{ doc.full_name }}{% else %}Dr. {{ doc.full_name }}{% endif %} ({{ doc.department }})</option>
+        {% endfor %}
+      </select>
+    {% endif %}
+    <button class="btn btn-outline btn-sm" onclick="loadDoctorAnalytics()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <span>Refresh Clinic</span>
+    </button>
+  </div>
+</div>
+
+<!-- Doctor Clinical Risk & Anomaly Alerts Dropdown -->
+<div id="doctorAlertsContainer" style="margin-bottom:1.5rem; display:none;">
+  <!-- Rendered dynamically by doctor.js -->
+</div>
+
+<!-- Doctor Clinical Workstation KPI Cards (4 Metrics) -->
+<div class="grid-4" style="margin-bottom:1.75rem;">
+  <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+    <div class="kpi-label">Today's Patient Queue</div>
+    <div id="kpiDocQueue" class="kpi-value">--</div>
+    <div class="kpi-sub">Assigned OPD consultations</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid #f59e0b;">
+    <div class="kpi-label">Waiting in Clinic</div>
+    <div id="kpiDocWaiting" class="kpi-value" style="color:#d97706;">--</div>
+    <div class="kpi-sub">Checked-in &bull; Awaiting consultation</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+    <div class="kpi-label">Encounters Completed</div>
+    <div id="kpiDocCompleted" class="kpi-value" style="color:var(--success-text);">--</div>
+    <div class="kpi-sub">SOAP documentation finalized</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--danger-border);">
+    <div class="kpi-label">Clinical Risk / Vitals Flags</div>
+    <div id="kpiDocRisks" class="kpi-value" style="color:var(--danger-text);">0</div>
+    <div id="kpiDocRiskSub" class="kpi-sub">Abnormal vitals &bull; Drug allergies</div>
+  </div>
+</div>
+
+<div class="grid-3" style="grid-template-columns: 320px 1fr 1fr;">
+  <!-- Column 1: Today's Patient Queue -->
+  <div class="card" style="grid-column: 1;">
+    <div class="card-header">
+      <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+        <span>Consultation Queue</span>
+      </h3>
+      <button class="btn btn-outline btn-sm" onclick="loadDoctorQueue()">Refresh</button>
+    </div>
+    <div id="queueContainer" style="max-height:650px; overflow-y:auto;">
+      <!-- Populated dynamically by doctor.js -->
+    </div>
+  </div>
+
+  <!-- Column 2 & 3: Clinical Workspace -->
+  <div style="grid-column: 2 / span 2;">
+    <div id="consultationEmptyState" class="card" style="padding:2rem; text-align:center;">
+      <h2 class="card-title">Select a patient to begin</h2>
+      <p class="page-subtitle" style="margin-top:.5rem;">Choose a patient from the consultation queue to review their chart and open the SOAP consultation form.</p>
+    </div>
+    <!-- Active Patient Header Banner -->
+    <div id="consultationBanner" class="card" style="display:none; background-color:var(--primary-50); border-color:var(--primary-100); margin-bottom:1.25rem;">
+      <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+        <div>
+          <h2 id="activePatientName" style="font-size:1.25rem; font-weight:700; color:var(--text-main);">-</h2>
+          <div id="activePatientMeta" style="font-size:var(--font-xs); color:var(--text-muted); margin-top:0.25rem;">-</div>
+        </div>
+        <div id="activePatientAllergies" class="badge badge-danger" style="display:none; font-size:var(--font-sm); padding:0.4rem 0.75rem;">
+          <!-- Known Allergies Alert -->
+        </div>
+      </div>
+      
+      <!-- Patient Vitals Bar -->
+      <div id="activePatientVitals" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(0,0,0,0.06);">
+        <!-- Populated dynamically -->
+      </div>
+
+      <!-- Read-Only Invoice State (Doctor UI Workstation Customization) -->
+      <div id="activePatientInvoiceState" style="margin-top:0.75rem; padding-top:0.75rem; border-top:1px solid rgba(0,0,0,0.06);">
+        <!-- Populated dynamically by doctor.js -->
+      </div>
+    </div>
+
+    <!-- Consultation Form Card -->
+    <div id="consultationFormCard" class="card" style="display:none;">
+      <div class="card-header">
+        <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          <span>Consultation notes</span>
+        </h3>
+        
+        <!-- 1-Click Treatment Templates Accelerator -->
+        <div style="display:flex; align-items:center; gap:0.5rem;">
+          <span style="font-size:var(--font-xs); font-weight:600; color:var(--text-muted); display:inline-flex; align-items:center; gap:0.25rem;">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+            1-Click Protocol:
+          </span>
+          <select id="treatmentTemplateSelect" class="form-select" style="width:280px; font-size:var(--font-xs);">
+            <!-- Populated from doctor.js -->
+          </select>
+        </div>
+      </div>
+
+      <form id="encounterForm">
+        <div class="grid-2">
+          <!-- Subjective: Chief Complaints -->
+          <div class="form-group">
+            <label class="form-label" for="chiefComplaint">Chief Complaints *</label>
+            <textarea id="chiefComplaint" class="form-control" rows="2" placeholder="e.g. High fever with chills for 3 days..." required></textarea>
+          </div>
+
+          <!-- Objective: Clinical Examination / Notes -->
+          <div class="form-group">
+            <label class="form-label" for="clinicalNotes">Clinical Examination & Findings</label>
+            <textarea id="clinicalNotes" class="form-control" rows="2" placeholder="Chest clear, abdomen soft, no pedal edema..."></textarea>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <!-- Assessment: Diagnosis -->
+          <div class="form-group">
+            <label class="form-label" for="diagnosis">Assessment / Diagnosis *</label>
+            <input type="text" id="diagnosis" class="form-control" placeholder="e.g. Acute Viral Bronchitis" required>
+          </div>
+
+          <!-- ICD-10 Coding -->
+          <div class="form-group">
+            <label class="form-label" for="icd10Code">ICD-10 Code (Optional)</label>
+            <input type="text" id="icd10Code" class="form-control" placeholder="e.g. J06.9, A99">
+          </div>
+        </div>
+
+        <!-- Plan Section 1: Prescriptions -->
+        <div style="margin:1.5rem 0 1rem 0;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <h4 style="font-size:var(--font-sm); font-weight:700; text-transform:uppercase; color:var(--text-muted); display:flex; align-items:center; gap:0.4rem;">
+              <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="m10.5 20.5 10-10a4.95 4.95 0 1 0-7-7l-10 10a4.95 4.95 0 1 0 7 7Z"/><path d="m8.5 8.5 7 7"/></svg>
+              Prescribed Medications
+            </h4>
+            <button type="button" class="btn btn-primary btn-sm" onclick="addPrescriptionRow()">+ Add Medicine</button>
+          </div>
+
+          <div class="table-wrapper">
+            <table class="clinical-table">
+              <thead>
+                <tr>
+                  <th>Drug Name</th>
+                  <th>Dose</th>
+                  <th>Frequency</th>
+                  <th>Duration</th>
+                  <th>Instructions</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="rxTableBody">
+                <!-- Dynamically added by doctor.js -->
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Plan Section 2: Diagnostic Investigations & Inpatient Admission -->
+        <div class="grid-2" style="margin-top:1.25rem;">
+          <!-- Diagnostics -->
+          <div class="card" style="background-color:var(--bg-surface-alt); margin-bottom:0;">
+            <h4 style="font-size:var(--font-xs); font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.31L4.69 19.1A2 2 0 0 0 6.41 22h11.18a2 2 0 0 0 1.72-2.9L14 9.31V2"/><line x1="8.5" y1="2" x2="15.5" y2="2"/></svg>
+              Diagnostic Investigations (Lab / Radiology)
+            </h4>
+            <div id="labCheckboxesContainer">
+              <!-- Lab test checkboxes populated by doctor.js -->
+            </div>
+          </div>
+
+          <!-- Inpatient Admission -->
+          <div class="card" style="background-color:var(--bg-surface-alt); margin-bottom:0;">
+            <h4 style="font-size:var(--font-xs); font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.75rem; display:flex; align-items:center; gap:0.4rem;">
+              <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M2 4v16M2 8h18a2 2 0 0 1 2 2v10M2 17h20M6 8v9"/></svg>
+              Hospitalization &amp; Inpatient Care
+            </h4>
+            <label style="display:flex; align-items:center; gap:0.5rem; font-size:var(--font-sm); cursor:pointer;">
+              <input type="checkbox" id="admissionCheckbox">
+              <strong>Recommend Inpatient (IPD) Admission</strong>
+            </label>
+            <div id="admissionDetailsArea" style="margin-top:0.75rem;">
+              <label class="form-label" for="admissionWard">Preferred Ward</label>
+              <select id="admissionWard" class="form-select">
+                <option value="General Ward A">General Ward A</option>
+                <option value="Cardiology ICU">Cardiology ICU</option>
+                <option value="Pediatric Ward">Pediatric Ward</option>
+                <option value="Deluxe Suite">Deluxe Suite</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <div style="margin-top:1.5rem; display:flex; justify-content:flex-end; gap:1rem;">
+          <button type="submit" class="btn btn-success" style="padding:0.75rem 1.75rem; font-size:var(--font-base); display:inline-flex; align-items:center; gap:0.5rem;">
+            <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>Finalize Consultation &amp; Sign Rx</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Diagnostic Reports Review & Clinical Authentication Workstation -->
+<section class="card" id="doctorLabReviewSection" style="margin-top:2rem;">
+  <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h2 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        <span>Diagnostic Reports Review &amp; Clinical Authentication Workstation</span>
+      </h2>
+      <p class="page-subtitle" style="margin-top:.25rem;">
+        Verify completed lab investigations and radiology imaging scans. Clinically authenticate reports for patient dispatch, or return them with revision notes to the laboratory technician.
+      </p>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <button class="btn btn-outline btn-sm" onclick="loadDoctorReviewQueue()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+        <span>Refresh Reports Queue</span>
+      </button>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="clinical-table">
+      <thead>
+        <tr>
+          <th>Order # / Barcode</th>
+          <th>Patient &amp; MRN</th>
+          <th>Test / Investigation</th>
+          <th>Findings &amp; Parameter Summary</th>
+          <th>Clinical Sign-Off Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="doctorReviewQueueBody">
+        <tr><td colspan="6" style="text-align:center; padding:1.5rem; color:var(--text-muted);">Loading diagnostic review queue…</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Modal: Doctor Revision Request Notes -->
+<div class="modal-backdrop" id="doctorRevisionModal">
+  <div class="modal-dialog" style="max-width:540px; border-radius:16px;">
+    <div class="modal-header">
+      <h3 class="modal-title" style="display:flex; align-items:center; gap:0.5rem; color:#b45309;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+        <span>Request Diagnostic Report Revision</span>
+      </h3>
+      <button class="modal-close" onclick="closeModal('doctorRevisionModal')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="revOrderId">
+      <div style="background:#fef3c7; border:1px solid #fde68a; border-radius:8px; padding:0.75rem 1rem; margin-bottom:1rem; font-size:0.825rem; color:#92400e;">
+        <strong>Notice:</strong> This will return the investigation to the laboratory technician's active worklist. The technician will be instructed to make your requested adjustments and re-submit for final approval.
+      </div>
+
+      <div style="font-size:0.875rem; margin-bottom:0.75rem;">
+        Patient: <strong id="revPatientName">-</strong> &bull; Test: <strong id="revTestName">-</strong>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="revDoctorNotes">Clinical Changes &amp; Specific Revision Instructions *</label>
+        <textarea id="revDoctorNotes" class="form-control" rows="4" placeholder="e.g. Please re-verify platelet count with manual peripheral smear. Check for reactive lymphocytes. Add lateral radiograph projection notes." required></textarea>
+      </div>
+
+      <div style="display:flex; justify-content:flex-end; gap:0.6rem; margin-top:1rem;">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('doctorRevisionModal')">Cancel</button>
+        <button type="button" class="btn btn-warning" onclick="submitDoctorRevision()" id="btnSubmitRevision" style="background:#d97706; color:#fff; border:none;">
+          ↩️ Return to Technician with Notes
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<section class="card" id="doctorCommissionPanel" style="margin-top:2rem;">
+  <div class="card-header" style="flex-wrap:wrap;">
+    <div>
+      <h2 class="card-title">Doctor Commission, Settlement &amp; Billing Track</h2>
+
+      <p class="page-subtitle" style="margin-top:.25rem;">Real-time automated evaluation of patient bill settlement, clinical safety locks, and instant payout collection.</p>
+    </div>
+    <div style="display:flex;gap:.5rem;align-items:end;flex-wrap:wrap;">
+      <label class="form-label" for="commissionPeriod" style="margin:0;">Month</label>
+      <input id="commissionPeriod" class="form-control" type="month" aria-label="Choose a month">
+      <button class="btn btn-outline btn-sm" type="button" onclick="loadDoctorCommission(true)">Refresh</button>
+      <button class="btn btn-outline btn-sm" type="button" onclick="downloadCommissionStatement()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <span>Download PDF Statement</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="doctorCommissionPreviewNotice" class="preview-notice" role="status" aria-live="polite" hidden></div>
+
+  <!-- One-Button Cash Collection Hero Panel -->
+  <div class="card" style="background:var(--bg-surface-alt);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:1.25rem;margin:1rem 0;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem;">
+      <div>
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <span style="font-size:var(--font-xs);text-transform:uppercase;letter-spacing:0.05em;color:var(--text-muted);font-weight:700;">Payout Settlement Track</span>
+          <span id="heroStatusChip" class="badge badge-success">[🔓 Ready to Pull]</span>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:0.75rem;margin-top:0.35rem;">
+          <span id="heroAvailableAmount" style="font-size:2rem;font-weight:700;color:var(--text-main);">₹0.00</span>
+          <span class="kpi-sub">Available balance for instant settlement</span>
+        </div>
+      </div>
+      <div>
+        <button id="btnInstantPayout" class="btn btn-primary" type="button" onclick="requestInstantPayout()" style="font-weight:600;padding:0.65rem 1.5rem;">
+          Request Instant Payout
+        </button>
+      </div>
+    </div>
+    <div id="instantPayoutOutcome" style="display:none;margin-top:1rem;"></div>
+  </div>
+
+  <div class="grid-4" style="margin:1rem 0;">
+    <div class="kpi-card kpi-card-highlight">
+      <div class="kpi-label">Ready to pull</div>
+      <div id="commissionAvailable" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Released funds available now</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Waiting for bills / locks</div>
+      <div id="commissionPending" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Held by safety invariants</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Earned this month</div>
+      <div id="commissionEarned" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Total commissions calculated</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Paid this month</div>
+      <div id="commissionPaid" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Settled bank disbursements</div>
+    </div>
+  </div>
+
+  <!-- Granular Transactional Tracing Table -->
+  <div style="margin-top:1.5rem;">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem;margin-bottom:0.75rem;">
+      <div>
+        <h3 class="card-title" style="margin:0;">Granular Commission &amp; Billing Track</h3>
+        <p class="kpi-sub" style="margin:0.2rem 0 0;">Transactional trace of each patient bill, commission calculation, and safety lock reason.</p>
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem;flex-wrap:wrap;">
+        <select id="ledgerStatusFilter" class="form-select" onchange="loadDoctorLedger(1)" style="min-width:180px;">
+          <option value="">All Statuses</option>
+          <option value="RELEASED">Ready to Pull</option>
+          <option value="ACCRUED">Waiting for Patient Bills</option>
+          <option value="SETTLED">Settled</option>
+
+        </select>
+        <input id="ledgerPatientFilter" type="number" class="form-control" placeholder="Filter by Patient ID" style="width:170px;" oninput="loadDoctorLedger(1)">
+        <input id="commissionSearch" class="form-control" placeholder="Search invoice or service" style="width:200px;" oninput="loadCommissionTransactions()">
+      </div>
+    </div>
+
+    <div class="table-wrapper">
+      <table class="clinical-table doctor-finance-table">
+        <thead>
+          <tr>
+            <th>Date / ID</th>
+            <th>Patient</th>
+            <th>Invoice / Service</th>
+            <th>Base Bill</th>
+            <th>Commission</th>
+            <th>Status</th>
+            <th>Lock Reason / Audit</th>
+          </tr>
+        </thead>
+        <tbody id="commissionLedgerBody">
+          <tr><td colspan="7">Loading granular ledger records…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:.75rem;">
+      <span id="commissionLedgerPageLabel" class="kpi-sub"></span>
+      <div>
+        <button id="btnLedgerPrev" class="btn btn-outline btn-sm" onclick="doctorLedgerPage(-1)">Previous</button>
+        <button id="btnLedgerNext" class="btn btn-outline btn-sm" onclick="doctorLedgerPage(1)">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid-2" style="margin-top:2rem;">
+    <div>
+      <h3 class="card-title" style="margin:.5rem 0;">Payout History</h3>
+      <div class="table-wrapper"><table class="clinical-table doctor-finance-table"><thead><tr><th>Request</th><th>Month</th><th>Amount</th><th>Status</th><th>Payment Reference</th></tr></thead>
+        <tbody id="mySettlementBody"><tr><td colspan="5">Loading requests…</td></tr></tbody></table></div>
+    </div>
+    <div>
+      <h3 class="card-title" style="margin:.5rem 0;">Earnings Trend</h3>
+      <div class="chart-card"><canvas id="doctorCommissionChart" height="130" aria-label="Earnings by month"></canvas></div>
+    </div>
+  </div>
+</section>
+<script>window.HMS_DOCTOR_ID = {{ user.id }}; window.HMS_IS_DOCTOR = {{ 'true' if user.role == 'DOCTOR' else 'false' }};</script>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chart.min.js"></script>
+<script src="/static/js/doctor.js?v=staff-ux-3"></script>
+<script src="/static/js/commission.js?v=staff-ux-3"></script>
+{% endblock %}

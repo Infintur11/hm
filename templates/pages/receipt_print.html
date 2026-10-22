@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Receipt {{ invoice.invoice_number }} - {{ settings.HOSPITAL_NAME }}</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/print.css">
+  <style>
+    body { background-color: #f1f5f9; padding: 2rem; }
+    .receipt-container {
+      max-width: 650px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 2rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+    .print-header {
+      text-align: center;
+      border-bottom: 2px solid var(--text-main);
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .print-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+    .print-table th, .print-table td {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0.6rem 0.5rem;
+      text-align: left;
+      font-size: var(--font-sm);
+    }
+    .print-table th {
+      background-color: var(--bg-surface-alt);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: var(--font-xs);
+    }
+  </style>
+</head>
+<body>
+  <div class="receipt-container">
+    <div class="print-header">
+      <div style="font-size:1.5rem; font-weight:700;">{{ settings.HOSPITAL_NAME }}</div>
+      <div style="font-size:var(--font-xs); color:var(--text-muted); margin-top:0.25rem;">
+        {{ settings.HOSPITAL_ADDRESS }} &bull; Ph: {{ settings.HOSPITAL_PHONE }}
+      </div>
+      <div style="margin-top:0.75rem; font-size:var(--font-sm); font-weight:600; text-transform:uppercase; letter-spacing:0.05em;">
+        Official Patient Bill & Receipt
+      </div>
+    </div>
+
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:1rem; font-size:var(--font-sm); margin-bottom:1.25rem;">
+      <div>
+        <div><strong>Patient:</strong> {{ patient.full_name }}</div>
+        <div><strong>MRN:</strong> {{ patient.mrn }}</div>
+        <div><strong>Age / Sex:</strong> {{ patient.age }} / {{ patient.gender }}</div>
+        <div><strong>Consulting Doctor:</strong> {% if doctor %}Dr. {{ doctor.full_name.replace('Dr. ', '') }} ({{ doctor.department or 'General' }}){% else %}Attending Medical Consultant{% endif %}</div>
+      </div>
+      <div style="text-align:right;">
+        <div><strong>Invoice #:</strong> {{ invoice.invoice_number }}</div>
+        <div><strong>Date:</strong> {{ invoice.created_at.strftime("%d-%b-%Y %H:%M") }}</div>
+        <div><strong>Payment Mode:</strong> {{ invoice.payment_method or 'CASH' }} ({{ invoice.payment_status }})</div>
+        {% if invoice.upi_id %}<div><small style="color:var(--text-muted);">UPI UTR: {{ invoice.upi_id }}</small></div>{% endif %}
+        {% if invoice.cheque_number %}<div><small style="color:var(--text-muted);">Cheque: #{{ invoice.cheque_number }} ({{ invoice.bank_name or 'Bank' }})</small></div>{% endif %}
+      </div>
+    </div>
+
+
+    <table class="print-table">
+      <thead>
+        <tr>
+          <th>Category</th>
+          <th>Description</th>
+          <th style="text-align:center;">Qty</th>
+          <th style="text-align:right;">Rate</th>
+          <th style="text-align:right;">Amount</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for item in items %}
+        <tr>
+          <td><span style="font-size:var(--font-xs); color:var(--text-muted);">{{ item.item_type }}</span></td>
+          <td><strong>{{ item.description }}</strong></td>
+          <td style="text-align:center;">{{ item.quantity }}</td>
+          <td style="text-align:right;">₹{{ "%.2f"|format(item.unit_price) }}</td>
+          <td style="text-align:right;">₹{{ "%.2f"|format(item.total_price) }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <div style="display:flex; justify-content:flex-end; margin-top:1rem; font-size:var(--font-sm);">
+      <div style="width:240px;">
+        <div style="display:flex; justify-content:space-between; padding:0.25rem 0;">
+          <span>Subtotal:</span>
+          <span>₹{{ "%.2f"|format(invoice.total_amount) }}</span>
+        </div>
+        {% if invoice.discount_amount > 0 %}
+        <div style="display:flex; justify-content:space-between; padding:0.25rem 0; color:var(--success-text);">
+          <span>Discount:</span>
+          <span>-₹{{ "%.2f"|format(invoice.discount_amount) }}</span>
+        </div>
+        {% endif %}
+        <div style="display:flex; justify-content:space-between; padding:0.5rem 0; border-top:2px solid var(--text-main); font-weight:700; font-size:var(--font-base);">
+          <span>Net Paid:</span>
+          <span>₹{{ "%.2f"|format(invoice.paid_amount) }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-top:2.5rem; display:flex; justify-content:space-between; align-items:flex-end; font-size:var(--font-xs); color:var(--text-muted);">
+      <div>Computer generated receipt &bull; Valid without physical stamp</div>
+      <div style="text-align:center; border-top:1px solid #333; width:180px; padding-top:0.35rem;">
+        Authorized Cashier / Desk
+      </div>
+    </div>
+
+    <div class="no-print" style="margin-top:2rem; text-align:center;">
+      <button class="btn btn-primary" onclick="window.print()" style="display:inline-flex; align-items:center; gap:0.4rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>Print Receipt Voucher</span>
+      </button>
+      <button class="btn btn-outline" onclick="window.close()" style="margin-left:0.5rem;">Close Window</button>
+    </div>
+  </div>
+</body>
+</html>

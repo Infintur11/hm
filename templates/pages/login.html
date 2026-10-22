@@ -1,0 +1,167 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div style="max-width:440px; margin:3rem auto;">
+  <div class="card" style="padding:2rem;">
+    <div style="text-align:center; margin-bottom:1.5rem;">
+      <div style="margin-bottom:0.75rem; display:flex; justify-content:center; color:var(--primary-600);">
+        <svg class="icon icon-xl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5L12 2 4 5v7c0 6 8 10 8 10z"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </div>
+      <h2 class="card-title" style="font-size:1.5rem; text-align:center; margin:0;">Hospital Staff Login</h2>
+    </div>
+
+    <!-- Quick Profile Selector Dropdown (Stays in one place) -->
+    <div class="form-group" style="margin-bottom:1.25rem;">
+      <label class="form-label" for="roleSelect" style="display:flex; justify-content:space-between; align-items:center;">
+        <span>Select Staff Profile</span>
+        <span style="font-size:var(--font-xs); color:var(--primary-600); font-weight:normal;">1-Click Ready</span>
+      </label>
+      <select id="roleSelect" class="form-select" onchange="handleRoleSelect(this.value)" style="font-weight:500;">
+        <option value="">-- Choose Profile to Log In --</option>
+        <option value="cashier.karan|cash123">💳 Cashier (cashier.karan) - Billing Desk</option>
+        <option value="recep.riya|recep123">📋 Reception (recep.riya) - Front Desk</option>
+        <option value="dr.sharma|doc123">🩺 Doctor (dr.sharma) - Cardiology OPD</option>
+        <option value="nurse.mary|nurse123">💉 Nurse (nurse.mary) - Inpatient Wards</option>
+        <option value="pharma.kumar|pharma123">💊 Pharmacist (pharma.kumar) - Dispensary</option>
+        <option value="lab.john|lab123">🔬 Lab Tech (lab.john) - Pathology Lab</option>
+        <option value="admin|admin123">⚙️ Admin (admin) - Full Access</option>
+      </select>
+    </div>
+
+    <form id="loginForm" autocomplete="off">
+      <div class="form-group">
+        <label class="form-label" for="username">Username</label>
+        <input type="text" id="username" class="form-control" placeholder="e.g. cashier.karan or dr.sharma" required autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="password">Password</label>
+        <input type="password" id="password" class="form-control" placeholder="••••••••" required autocomplete="new-password">
+      </div>
+
+      <button type="submit" id="submitLoginBtn" class="btn btn-primary" style="width:100%; margin-top:0.5rem;">
+        Sign In to Portal &rarr;
+      </button>
+    </form>
+
+    <div style="margin-top:1.5rem; padding-top:1.25rem; border-top:1px solid var(--border-subtle); font-size:var(--font-xs); color:var(--text-muted);">
+      <div style="font-weight:600; margin-bottom:0.5rem; color:var(--text-main);">Demo Accounts (Click to select):</div>
+      <div id="demoAccountsList" style="display:flex; flex-direction:column; gap:0.35rem;">
+        <div id="demo-cashier" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('cashier.karan', 'cash123', 'demo-cashier')">
+          💳 <strong>Cashier:</strong> <code>cashier.karan</code> / <code>cash123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Billing Desk)</span>
+        </div>
+        <div id="demo-reception" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('recep.riya', 'recep123', 'demo-reception')">
+          📋 <strong>Reception:</strong> <code>recep.riya</code> / <code>recep123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Front Desk)</span>
+        </div>
+        <div id="demo-doctor" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('dr.sharma', 'doc123', 'demo-doctor')">
+          🩺 <strong>Doctor:</strong> <code>dr.sharma</code> / <code>doc123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Cardiology OPD)</span>
+        </div>
+        <div id="demo-nurse" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('nurse.mary', 'nurse123', 'demo-nurse')">
+          💉 <strong>Nurse:</strong> <code>nurse.mary</code> / <code>nurse123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Inpatient Wards)</span>
+        </div>
+        <div id="demo-pharmacist" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('pharma.kumar', 'pharma123', 'demo-pharmacist')">
+          💊 <strong>Pharmacist:</strong> <code>pharma.kumar</code> / <code>pharma123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Dispensary)</span>
+        </div>
+        <div id="demo-lab" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('lab.john', 'lab123', 'demo-lab')">
+          🔬 <strong>Lab Tech:</strong> <code>lab.john</code> / <code>lab123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Pathology)</span>
+        </div>
+        <div id="demo-admin" style="cursor:pointer; padding:0.35rem 0.5rem; border-radius:var(--radius-sm); border:1px solid transparent; transition:all 0.15s;" onclick="fillDemo('admin', 'admin123', 'demo-admin')">
+          ⚙️ <strong>Admin:</strong> <code>admin</code> / <code>admin123</code> <span style="font-size:0.65rem; color:var(--primary-600); float:right;">(Full Access)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function handleRoleSelect(val) {
+  if (!val) return;
+  const [username, password] = val.split("|");
+  fillDemo(username, password);
+}
+
+function fillDemo(username, password, activeId = null) {
+  const uInput = document.getElementById("username");
+  const pInput = document.getElementById("password");
+  const rSelect = document.getElementById("roleSelect");
+
+  if (uInput && pInput) {
+    uInput.value = username;
+    pInput.value = password;
+  }
+
+  if (rSelect) {
+    rSelect.value = `${username}|${password}`;
+  }
+
+  // Visual selection highlight
+  const items = document.querySelectorAll("#demoAccountsList > div");
+  items.forEach(el => {
+    el.style.background = "transparent";
+    el.style.borderColor = "transparent";
+  });
+
+  if (activeId) {
+    const el = document.getElementById(activeId);
+    if (el) {
+      el.style.background = "rgba(37, 99, 235, 0.08)";
+      el.style.borderColor = "var(--primary-300, #93c5fd)";
+    }
+  }
+
+  showToast(`Selected ${username}`, "info");
+}
+
+window.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("expired") === "1") {
+    showToast("Session expired or signed out. Please log in again.", "warning");
+    window.history.replaceState({}, document.title, window.location.pathname);
+  }
+});
+
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const username = document.getElementById("username").value.trim();
+  const password = document.getElementById("password").value;
+
+  try {
+    const data = await apiFetch("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify({ username, password })
+    });
+
+    if (!data) return;
+
+    if (window.HMS_AUTH) {
+      window.HMS_AUTH.notifyLogin();
+    }
+
+    showToast(`Welcome back, ${data.full_name}!`, "success");
+    
+    // Redirect based on role
+    const redirects = {
+      "RECEPTIONIST": "/reception",
+      "DOCTOR": "/doctor",
+      "NURSE": "/nurse",
+      "LAB_TECH": "/lab",
+      "PHARMACIST": "/pharmacy",
+      "CASHIER": "/billing",
+      "ADMIN": "/admin",
+      "SUPER_ADMIN": "/admin"
+    };
+
+    setTimeout(() => {
+      window.location.href = redirects[data.role] || "/billing";
+    }, 300);
+
+  } catch (err) {}
+});
+</script>
+{% endblock %}

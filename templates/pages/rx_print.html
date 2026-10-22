@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Prescription - {{ patient.full_name }}</title>
+  <link rel="stylesheet" href="/static/css/tokens.css">
+  <link rel="stylesheet" href="/static/css/base.css">
+  <link rel="stylesheet" href="/static/css/print.css">
+  <style>
+    body { background-color: #f1f5f9; padding: 2rem; }
+    .rx-container {
+      max-width: 750px;
+      margin: 0 auto;
+      background: #ffffff;
+      padding: 2.5rem;
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      box-shadow: var(--shadow-md);
+    }
+    .rx-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      border-bottom: 2px solid var(--primary-600);
+      padding-bottom: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .rx-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 1.5rem 0;
+    }
+    .rx-table th, .rx-table td {
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0.75rem 0.5rem;
+      text-align: left;
+      font-size: var(--font-sm);
+    }
+    .rx-table th {
+      background-color: var(--bg-surface-alt);
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: var(--font-xs);
+    }
+  </style>
+</head>
+<body>
+  <div class="rx-container">
+    <div class="rx-header">
+      <div>
+        <div style="font-size:1.5rem; font-weight:700; color:var(--primary-700);">{{ settings.HOSPITAL_NAME }}</div>
+        <div style="font-size:var(--font-xs); color:var(--text-muted); margin-top:0.25rem;">
+          {{ settings.HOSPITAL_ADDRESS }} &bull; Ph: {{ settings.HOSPITAL_PHONE }}
+        </div>
+      </div>
+      <div style="text-align:right;">
+        <div style="font-size:1.1rem; font-weight:700;">{% if doctor.full_name.startswith('Dr.') %}{{ doctor.full_name }}{% else %}Dr. {{ doctor.full_name }}{% endif %}</div>
+        <div style="font-size:var(--font-xs); color:var(--text-muted);">{{ doctor.department }}</div>
+      </div>
+    </div>
+
+    <!-- Patient Details Strip -->
+    <div style="display:grid; grid-template-columns: 2fr 1fr 1fr; gap:1rem; font-size:var(--font-sm); background:var(--bg-surface-alt); padding:0.75rem 1rem; border-radius:var(--radius-md); margin-bottom:1.5rem;">
+      <div><strong>Patient:</strong> {{ patient.full_name }} ({{ patient.age }}/{{ patient.gender }})</div>
+      <div><strong>MRN:</strong> {{ patient.mrn }}</div>
+      <div><strong>Date:</strong> {{ encounter.created_at.strftime("%d-%b-%Y") }}</div>
+    </div>
+
+    <!-- Diagnosis & Complaints -->
+    <div style="margin-bottom:1.5rem; font-size:var(--font-sm);">
+      <div><strong>Chief Complaints:</strong> {{ encounter.chief_complaint }}</div>
+      <div style="margin-top:0.35rem;">
+        <strong>Diagnosis:</strong> <span style="font-size:1rem; font-weight:600; color:var(--text-main);">{{ encounter.diagnosis }}</span>
+        {% if encounter.icd10_code %} (ICD-10: {{ encounter.icd10_code }}){% endif %}
+      </div>
+      {% if encounter.clinical_notes %}
+      <div style="margin-top:0.35rem; color:var(--text-muted);">
+        <strong>Clinical Notes:</strong> {{ encounter.clinical_notes }}
+      </div>
+      {% endif %}
+    </div>
+
+    <!-- Rx Symbol & Medicines Table -->
+    <div style="font-size:1.5rem; font-weight:bold; font-family:serif; color:var(--primary-700); margin-bottom:0.5rem;">℞</div>
+    
+    <table class="rx-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Medicine Name</th>
+          <th>Dosage</th>
+          <th>Frequency</th>
+          <th>Duration</th>
+          <th>Instructions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for rx in prescriptions %}
+        <tr>
+          <td>{{ loop.index }}</td>
+          <td><strong>{{ rx.medicine_name }}</strong></td>
+          <td>{{ rx.dosage }}</td>
+          <td><span class="badge badge-neutral">{{ rx.frequency }}</span></td>
+          <td>{{ rx.duration_days }} days</td>
+          <td>{{ rx.instructions }}</td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+
+    <!-- Investigations if ordered -->
+    {% if labs %}
+    <div style="margin-top:1.5rem;">
+      <h4 style="font-size:var(--font-xs); font-weight:700; text-transform:uppercase; color:var(--text-muted); margin-bottom:0.5rem; display:flex; align-items:center; gap:0.4rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M10 2v7.31L4.69 19.1A2 2 0 0 0 6.41 22h11.18a2 2 0 0 0 1.72-2.9L14 9.31V2"/><line x1="8.5" y1="2" x2="15.5" y2="2"/></svg>
+        <span>Diagnostic Investigations Ordered:</span>
+      </h4>
+      <ul style="font-size:var(--font-sm); padding-left:1.5rem; line-height:1.6;">
+        {% for l in labs %}
+          <li><strong>{{ l.test_name }}</strong> &mdash; Barcode: {{ l.sample_barcode }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <!-- Doctor Signature -->
+    <div style="margin-top:4rem; display:flex; justify-content:space-between; align-items:flex-end;">
+      <div style="font-size:var(--font-xs); color:var(--text-muted);">
+        Next Follow-up in 5 days if symptoms persist.<br>
+        Take medicines as per physician's advice.
+      </div>
+      <div style="text-align:center; border-top:1px solid #333; width:220px; padding-top:0.35rem; font-size:var(--font-sm);">
+        <strong>{% if doctor.full_name.startswith('Dr.') %}{{ doctor.full_name }}{% else %}Dr. {{ doctor.full_name }}{% endif %}</strong><br>
+        <span style="font-size:var(--font-xs); color:var(--text-muted);">Consultant Physician</span>
+      </div>
+    </div>
+
+    <!-- Print Action Buttons -->
+    <div class="no-print" style="margin-top:2rem; text-align:center;">
+      <button class="btn btn-primary" onclick="window.print()" style="display:inline-flex; align-items:center; gap:0.4rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+        <span>Print Prescription</span>
+      </button>
+      <button class="btn btn-outline" onclick="window.close()" style="margin-left:0.5rem;">Close Window</button>
+    </div>
+  </div>
+</body>
+</html>

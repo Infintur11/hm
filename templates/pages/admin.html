@@ -1,0 +1,984 @@
+{% extends "layouts/base.html" %}
+
+{% block content %}
+<div class="page-header">
+  <div>
+    <h1 class="page-title">
+      {% if user and user.role == 'SUPER_ADMIN' %}
+        Master System Administration &amp; Operations
+      {% else %}
+        Hospital Executive &amp; Operations Dashboard
+      {% endif %}
+    </h1>
+    <p class="page-subtitle">
+      {% if user and user.role == 'SUPER_ADMIN' %}
+        Master Configuration, Security Audit Logs, User Privileges, and System Purge Integrity
+      {% else %}
+        Real-Time Operational KPIs, Revenue Cycle Tracking, and Hospital Capacity
+      {% endif %}
+    </p>
+  </div>
+  <div style="display:flex; gap:0.5rem; align-items:center;">
+    <button class="btn btn-outline btn-sm" onclick="loadKpis(); loadActiveCustomKpis();" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+      <span>Refresh Analytics</span>
+    </button>
+    <button class="btn btn-primary btn-sm" onclick="openAddKpiModal()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>+ Add Pre-Built KPI Widget</span>
+    </button>
+  </div>
+</div>
+
+<!-- Dynamic Executive KPI Studio (Pre-Built SQL Analytical Queries) -->
+<div id="dynamicKpiSection" style="margin-bottom:1.5rem; background:rgba(37, 99, 235, 0.02); border:1px solid var(--primary-200); border-radius:var(--radius-lg); padding:1rem 1.25rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem; flex-wrap:wrap; gap:0.5rem;">
+    <div style="display:flex; align-items:center; gap:0.5rem;">
+      <span class="badge badge-primary" style="font-size:0.7rem; font-weight:700; letter-spacing:0.04em;">DYNAMIC KPI STUDIO</span>
+      <span style="font-size:0.8rem; color:var(--text-muted);">Admin widgets computed from real-time analytical SQL queries.</span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="openAddKpiModal()" style="font-size:0.75rem; padding:0.2rem 0.5rem; color:var(--primary-600); font-weight:600;">
+      + Pin Pre-Built Query KPI
+    </button>
+  </div>
+  <div id="dynamicKpisGrid" class="grid-4" style="gap:1rem;">
+    <!-- Rendered dynamically by corporate_admin.js -->
+  </div>
+</div>
+
+<!-- Standard Operations Metric Cards Grid -->
+<div class="grid-4" style="margin-bottom:2rem;">
+  <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+    <div class="kpi-label">Total Revenue Collected</div>
+    <div id="kpiRevenue" class="kpi-value">₹0.00</div>
+    <div class="kpi-sub">Cleared through cashier</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--danger-border);">
+    <div class="kpi-label">Pending Accounts Receivable</div>
+    <div id="kpiPending" class="kpi-value">₹0.00</div>
+    <div class="kpi-sub">Unbilled / Unpaid invoices</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+    <div class="kpi-label">Bed Occupancy Rate</div>
+    <div id="kpiOccupancy" class="kpi-value">0%</div>
+    <div id="kpiBedCount" class="kpi-sub">0 of 0 beds occupied</div>
+  </div>
+
+  <div class="kpi-card" style="border-left:4px solid #7c3aed;">
+    <div class="kpi-label">Total Registered Patients</div>
+    <div id="kpiPatients" class="kpi-value">0</div>
+    <div id="kpiTodayAppts" class="kpi-sub">0 scheduled today</div>
+  </div>
+</div>
+
+<section class="card" id="financeCommissionPanel" style="margin-bottom:2rem;">
+  <!-- Header: Month Selector & Minimal Executive Actions -->
+  <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h2 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span>Doctor Commission &amp; Financial Settlement</span>
+      </h2>
+      <p class="page-subtitle" style="margin-top:.25rem;">Physician compensation management, clinical safety invariants, and real-time bank settlements.</p>
+    </div>
+    <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+      <label class="form-label" for="financeCommissionPeriod" style="margin:0; font-size:var(--font-xs); font-weight:600;">Billing Period:</label>
+      <input id="financeCommissionPeriod" class="form-control" type="month" style="width:170px;" aria-label="Finance commission reporting month">
+      <button class="btn btn-outline btn-sm" type="button" onclick="loadFinanceCommission()">Refresh</button>
+      <button class="btn btn-outline btn-sm" type="button" onclick="downloadFinanceCommissionReport()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+        <span>Download PDF Report</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Minimalist Executive Financial KPI Row (4 Clean Non-Redundant Metrics) -->
+  <div class="grid-4" style="margin:1.25rem 0 1.5rem;">
+    <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+      <div class="kpi-label">Net Accrued Commission</div>
+      <div id="finCommissionNet" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Total earned across doctors</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+      <div class="kpi-label">Ready for Payout [🔓]</div>
+      <div id="finCommissionAvailable" class="kpi-value" style="color:var(--success-text);">₹0.00</div>
+      <div class="kpi-sub">Cleared all safety invariants</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid #f59e0b;">
+      <div class="kpi-label">Safety Holds [🔒]</div>
+      <div id="finCommissionLiability" class="kpi-value" style="color:#d97706;">₹0.00</div>
+      <div class="kpi-sub">Held on unpaid bills or targets</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid var(--text-muted);">
+      <div class="kpi-label">Disbursed &amp; Settled [✓]</div>
+      <div id="finCommissionPaid" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Total payouts transferred via bank</div>
+    </div>
+  </div>
+
+  <!-- Hidden elements preserving compatibility with JS bindings -->
+  <div style="display:none;" aria-hidden="true">
+    <span id="finCollections">₹0.00</span>
+    <span id="finCommissionEarned">₹0.00</span>
+    <span id="finCommissionReversals">₹0.00</span>
+    <span id="finCommissionReserved">₹0.00</span>
+    <span id="finCommissionApproved">₹0.00</span>
+    <span id="financeChartPreviewNotice"></span>
+    <canvas id="financeServiceChart"></canvas>
+    <canvas id="financeStatusChart"></canvas>
+  </div>
+
+
+  <!-- Primary Vertical Track: Granular Doctor Commission & Billing Track -->
+  <div style="border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:1.25rem; margin-bottom:2rem; background:var(--bg-surface);">
+    <div style="display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+      <div>
+        <h3 class="card-title" style="margin:0; font-size:1.1rem;">Granular Doctor Commission &amp; Billing Ledger</h3>
+        <p class="kpi-sub" style="margin:0.2rem 0 0;">Audit patient invoices, clinical safety invariant locks, and trigger instant settlements.</p>
+      </div>
+      <div style="display:flex; gap:0.5rem; flex-wrap:wrap;">
+        <button class="btn btn-outline btn-sm" type="button" onclick="adminEvaluateRules()">🛡️ Run Safety Lock Evaluation</button>
+        <button class="btn btn-primary btn-sm" type="button" onclick="adminInstantPayout()">⚡ Request Instant Payout for Doctor</button>
+      </div>
+    </div>
+
+    <!-- Filter Bar (Minimalist, Single Row) -->
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(180px, 1fr)); gap:0.5rem; align-items:end; margin-bottom:1rem; padding:0.75rem; background:var(--bg-surface-alt); border-radius:var(--radius-md);">
+      <div>
+        <label class="form-label" for="adminLedgerDoctorFilter" style="margin:0 0 0.2rem; font-size:var(--font-xs);">Doctor</label>
+        <select id="adminLedgerDoctorFilter" class="form-select" onchange="loadAdminLedger(1)">
+          <option value="">All Doctors</option>
+          {% for doc in doctors %}
+          <option value="{{ doc.id }}">{{ doc.full_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="adminLedgerDeptFilter" style="margin:0 0 0.2rem; font-size:var(--font-xs);">Department</label>
+        <input id="adminLedgerDeptFilter" class="form-control" placeholder="e.g. Cardiology" oninput="loadAdminLedger(1)">
+      </div>
+      <div>
+        <label class="form-label" for="adminLedgerStatusFilter" style="margin:0 0 0.2rem; font-size:var(--font-xs);">Settlement Status</label>
+        <select id="adminLedgerStatusFilter" class="form-select" onchange="loadAdminLedger(1)">
+          <option value="">All Statuses</option>
+          <option value="RELEASED">Ready to Pull</option>
+          <option value="ACCRUED">Waiting on Bills / Threshold</option>
+          <option value="SETTLED">Settled</option>
+        </select>
+      </div>
+      <div>
+        <label class="form-label" for="adminLedgerPatientFilter" style="margin:0 0 0.2rem; font-size:var(--font-xs);">Patient ID / MRN</label>
+        <input id="adminLedgerPatientFilter" type="number" class="form-control" placeholder="Filter by Patient ID" oninput="loadAdminLedger(1)">
+      </div>
+    </div>
+
+    <div id="adminInstantPayoutOutcome" style="display:none; margin-bottom:1rem;"></div>
+
+    <div class="table-wrapper">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>Date / ID</th>
+            <th>Doctor</th>
+            <th>Patient</th>
+            <th>Invoice / Service</th>
+            <th>Base Bill</th>
+            <th>Commission</th>
+            <th>Status</th>
+            <th>Safety Invariant Audit</th>
+          </tr>
+        </thead>
+        <tbody id="adminLedgerBody">
+          <tr><td colspan="8">Loading granular commission records…</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.75rem;">
+      <span id="adminLedgerPageLabel" class="kpi-sub"></span>
+      <div>
+        <button id="btnAdminLedgerPrev" class="btn btn-outline btn-sm" onclick="adminLedgerPage(-1)">Previous</button>
+        <button id="btnAdminLedgerNext" class="btn btn-outline btn-sm" onclick="adminLedgerPage(1)">Next</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vertical Section 2: Active Commission Rules -->
+  <div style="margin-bottom:2rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <div>
+        <h3 class="card-title" style="margin:0; font-size:1.05rem;">Active Commission Rules</h3>
+        <p class="kpi-sub" style="margin:0.2rem 0 0;">Configured compensation rates, department scopes, and clinical safety invariants.</p>
+      </div>
+      <button class="btn btn-outline btn-sm" type="button" onclick="toggleElement('newRuleCard')">+ Add Rule</button>
+    </div>
+
+    <!-- Collapsible: Add New Commission Rule Form -->
+    <div id="newRuleCard" class="card" style="display:none; background:var(--bg-surface-alt); border:1px solid var(--primary-200); margin-bottom:1.25rem; padding:1.25rem;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <h3 class="card-title" style="margin:0; font-size:1.05rem;">Define New Doctor Commission Rule</h3>
+        <button type="button" class="btn btn-outline btn-sm" onclick="toggleElement('newRuleCard')">Close</button>
+      </div>
+      <form id="commissionRuleForm" onsubmit="createCommissionRule(event)" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:0.75rem; align-items:end;">
+        <div>
+          <label class="form-label" for="ruleName">Rule Name *</label>
+          <input id="ruleName" class="form-control" required maxlength="120" placeholder="e.g. Cardiology OPD (15%)">
+        </div>
+        <div>
+          <label class="form-label" for="ruleDoctor">Doctor</label>
+          <select id="ruleDoctor" class="form-select">
+            <option value="">All Doctors (Hospital-Wide)</option>
+            {% for doc in doctors %}
+            <option value="{{ doc.id }}">{{ doc.full_name }} ({{ doc.department }})</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="ruleDepartment">Department</label>
+          <input id="ruleDepartment" class="form-control" maxlength="100" placeholder="e.g. Cardiology">
+        </div>
+        <div>
+          <label class="form-label" for="ruleService">Service Line</label>
+          <select id="ruleService" class="form-select">
+            <option value="">All Service Lines</option>
+            <option value="CONSULTATION">CONSULTATION</option>
+            <option value="INPATIENT_STAY">INPATIENT_STAY (Bed Charges)</option>
+            <option value="PROCEDURE">PROCEDURE</option>
+            <option value="LAB_TEST">LAB_TEST</option>
+            <option value="PHARMACY">PHARMACY</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="ruleType">Calculation Method</label>
+          <select id="ruleType" class="form-select">
+            <option value="PERCENTAGE">Percentage of Net Bill (%)</option>
+            <option value="FIXED_PER_SERVICE">Fixed Amount per Service (₹)</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label" for="ruleRate">Rate (%)</label>
+          <input id="ruleRate" type="number" class="form-control" min="0" max="100" step="0.01" placeholder="e.g. 15.00">
+        </div>
+        <div>
+          <label class="form-label" for="ruleFixed">Fixed Amount (₹)</label>
+          <input id="ruleFixed" type="number" class="form-control" min="0" step="0.01" placeholder="e.g. 500.00" disabled>
+        </div>
+        <div>
+          <label class="form-label" for="ruleThreshold">Min Monthly Threshold (₹)</label>
+          <input id="ruleThreshold" type="number" class="form-control" min="0" step="100" value="0">
+        </div>
+        <div>
+          <label class="form-label" for="ruleStart">Effective From *</label>
+          <input id="ruleStart" type="date" class="form-control" required>
+        </div>
+        <div style="grid-column: 1 / -1; display:flex; align-items:center; gap:0.5rem; margin-top:0.25rem;">
+          <input type="checkbox" id="ruleRequireAllPaid" checked style="width:16px;height:16px;">
+          <label for="ruleRequireAllPaid" style="font-size:var(--font-sm);margin:0;cursor:pointer;">
+            <strong>Enforce Clinical Safety Invariant A:</strong> Require all patient bills across hospital paid before releasing commission
+          </label>
+        </div>
+        <div style="grid-column: 1 / -1; display:flex; justify-content:flex-end; gap:0.5rem; margin-top:0.5rem;">
+          <button class="btn btn-outline btn-sm" type="button" onclick="toggleElement('newRuleCard')">Cancel</button>
+          <button class="btn btn-primary btn-sm" type="submit">Save Commission Rule</button>
+        </div>
+      </form>
+    </div>
+    <div class="table-wrapper">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>Rule</th>
+            <th>Scope</th>
+            <th>Calculation</th>
+            <th>Effective</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody id="commissionRulesBody">
+          <tr><td colspan="6">Loading rules…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Vertical Section 3: Physician Payout & Bank Settlement History -->
+  <div style="margin-bottom:2rem;">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+      <div>
+        <h3 class="card-title" style="margin:0; font-size:1.05rem;">Physician Payouts &amp; Bank Settlements</h3>
+        <p class="kpi-sub" style="margin:0.2rem 0 0;">Audited history of doctor settlement requests and electronic bank transfer UTRs.</p>
+      </div>
+    </div>
+    <div class="table-wrapper">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>Doctor / Period</th>
+            <th>Amount</th>
+            <th>Status</th>
+            <th>Actions / UTR Reference</th>
+          </tr>
+        </thead>
+        <tbody id="financeSettlementsBody">
+          <tr><td colspan="4">Loading settlement requests…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Vertical Section 4: Analytics Charts (2 Clean Cards Side-by-Side) -->
+  <div class="grid-2" style="margin-bottom:2rem;">
+    <div class="chart-card">
+      <h3 class="card-title" style="font-size:0.95rem;">Doctor Commission Comparison</h3>
+      <canvas id="financeDoctorChart" height="130"></canvas>
+    </div>
+    <div class="chart-card">
+      <h3 class="card-title" style="font-size:0.95rem;">Commission Accrual vs Disbursed</h3>
+      <canvas id="financeCompareChart" height="130"></canvas>
+    </div>
+  </div>
+
+  <!-- Vertical Section 5: Granular Multi-Dimension Financial Ledger & Analytical Breakdown -->
+  <div style="margin-bottom:2rem; border:1px solid var(--border-subtle); border-radius:var(--radius-lg); padding:1.25rem; background:var(--bg-surface);">
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; flex-wrap:wrap; gap:0.5rem;">
+      <div>
+        <h3 class="card-title" style="margin:0; font-size:1.05rem; display:flex; align-items:center; gap:0.4rem;">
+          <span>Granular Financial &amp; Multi-Dimension Ledger</span>
+          <span class="badge badge-primary" style="font-size:0.7rem;">High-Granularity Drilldown</span>
+        </h3>
+        <p class="kpi-sub" style="margin:0.2rem 0 0;">Minute transactional breakdown across Service Lines, Payment Tenders (Cash Notes, UPI, Cheques), Segments, and Referrals.</p>
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:center;">
+        <button class="btn btn-outline btn-sm" onclick="downloadGranularPdfReport()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+          <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+          <span>Download Granular Audit (PDF)</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Tab Selector -->
+    <div style="display:flex; gap:0.4rem; margin-bottom:1rem; border-bottom:1px solid var(--border-subtle); padding-bottom:0.5rem; flex-wrap:wrap;">
+      <button id="granularTabBtn_dept" class="btn btn-primary btn-sm" onclick="switchGranularTab('dept')">Departments &amp; Services</button>
+      <button id="granularTabBtn_tender" class="btn btn-outline btn-sm" onclick="switchGranularTab('tender')">Payment Tenders &amp; Cash Notes</button>
+      <button id="granularTabBtn_segment" class="btn btn-outline btn-sm" onclick="switchGranularTab('segment')">Walk-in vs Corporate</button>
+      <button id="granularTabBtn_doctor" class="btn btn-outline btn-sm" onclick="switchGranularTab('doctor')">Doctor Referrals &amp; Payouts</button>
+    </div>
+
+    <!-- Pane 1: Department & Service Line Breakdown -->
+    <div id="granularPane_dept">
+      <div class="table-wrapper">
+        <table class="clinical-table">
+          <thead>
+            <tr>
+              <th>Clinical Department / Service Line</th>
+              <th>Orders / Services Count</th>
+              <th>Turnover Realized</th>
+              <th>Hospital Revenue Share (%)</th>
+            </tr>
+          </thead>
+          <tbody id="granularDeptBody">
+            <tr><td colspan="4" style="text-align:center; padding:1.25rem;">Loading granular department breakdown...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pane 2: Payment Tenders & Denomination Ledger -->
+    <div id="granularPane_tender" style="display:none;">
+      <div class="table-wrapper" style="margin-bottom:1rem;">
+        <table class="clinical-table">
+          <thead>
+            <tr>
+              <th>Payment Channel / Tender</th>
+              <th>Cleared Transactions</th>
+              <th>Net Collected (₹)</th>
+              <th>Channel Share (%)</th>
+            </tr>
+          </thead>
+          <tbody id="granularTenderBody">
+            <tr><td colspan="4" style="text-align:center; padding:1.25rem;">Loading payment modes...</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div style="background:var(--bg-surface-alt); border:1px solid var(--border-subtle); border-radius:var(--radius-md); padding:0.85rem 1rem;">
+        <strong style="font-size:0.85rem; color:var(--text-main); display:block; margin-bottom:0.5rem;">
+          Physical Currency Denominations Audited (Cashier Vault Tally)
+        </strong>
+        <div id="granularDenomTallyGrid" style="display:grid; grid-template-columns:repeat(auto-fit, minmax(140px, 1fr)); gap:0.5rem;">
+          <!-- Loaded by corporate_admin.js -->
+        </div>
+      </div>
+    </div>
+
+    <!-- Pane 3: Walk-in vs Corporate Breakdown -->
+    <div id="granularPane_segment" style="display:none;">
+      <div class="table-wrapper">
+        <table class="clinical-table">
+          <thead>
+            <tr>
+              <th>Patient Billing Classification</th>
+              <th>Invoices Issued</th>
+              <th>Total Billed Amount (₹)</th>
+              <th>Volume Share (%)</th>
+              <th>Mean Ticket Realization (ARPU)</th>
+            </tr>
+          </thead>
+          <tbody id="granularSegmentBody">
+            <tr><td colspan="5" style="text-align:center; padding:1.25rem;">Loading segment mix...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Pane 4: Doctor Direct & Referral Commissions -->
+    <div id="granularPane_doctor" style="display:none;">
+      <div class="table-wrapper">
+        <table class="clinical-table">
+          <thead>
+            <tr>
+              <th>Consulting Physician</th>
+              <th>Specialty / Dept</th>
+              <th>Referred Patients</th>
+              <th>Billed Service Volume</th>
+              <th>Cumulative Commission Accrued</th>
+            </tr>
+          </thead>
+          <tbody id="granularDoctorBody">
+            <tr><td colspan="5" style="text-align:center; padding:1.25rem;">Loading doctor analytics...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Vertical Section 6: Safety Invariant & Financial Audit Log -->
+  <div>
+    <div style="margin-bottom:0.75rem;">
+      <h3 class="card-title" style="margin:0; font-size:1.05rem;">Commission Audit History</h3>
+      <p class="kpi-sub" style="margin:0.2rem 0 0;">Immutable chronological record of commission evaluations, status changes, and payouts.</p>
+    </div>
+    <div class="table-wrapper">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Resource</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="commissionAuditBody">
+          <tr><td colspan="5">Loading audit log…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- Section 2: Corporate & Insurance Tie-Up Management (TPAs & Monthly Credit Limits) -->
+<section class="card" id="corporateTieupsPanel" style="margin-bottom:2rem;">
+  <div class="card-header" style="flex-wrap:wrap; gap:1rem;">
+    <div>
+      <h2 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+        <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg>
+        <span>Corporate &amp; Insurance Client Tie-Ups (Monthly Credit Limits &amp; TPAs)</span>
+      </h2>
+      <p class="page-subtitle" style="margin-top:.25rem;">Manage contracted TPAs, insurance firms, and corporate corporate accounts. Dynamically adjust monthly credit limits.</p>
+    </div>
+    <div style="display:flex; gap:0.5rem; align-items:center;">
+      <button class="btn btn-outline btn-sm" onclick="loadCorporateAdminSection()">Refresh Partners</button>
+      <button class="btn btn-primary btn-sm" onclick="openCreateCorporateModal()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        <span>+ Add Corporate Partner</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Corporate Credit Limit Pool Metrics -->
+  <div class="grid-4" style="margin:1.25rem 0 1.5rem;">
+    <div class="kpi-card" style="border-left:4px solid var(--primary-600);">
+      <div class="kpi-label">Active Corporate Partners</div>
+      <div id="kpiCorpCount" class="kpi-value">0</div>
+      <div class="kpi-sub">Contracted insurance &amp; corporate tie-ups</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid #7c3aed;">
+      <div class="kpi-label">Combined Credit Allocation</div>
+      <div id="kpiCorpPool" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Total monthly approved limit pool</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid var(--danger-border);">
+      <div class="kpi-label">Utilized Credit (This Month)</div>
+      <div id="kpiCorpUtilized" class="kpi-value">₹0.00</div>
+      <div class="kpi-sub">Billed against corporate accounts</div>
+    </div>
+    <div class="kpi-card" style="border-left:4px solid var(--success-border);">
+      <div class="kpi-label">Available Credit Balance</div>
+      <div id="kpiCorpAvailable" class="kpi-value" style="color:var(--success-text);">₹0.00</div>
+      <div class="kpi-sub">Remaining credit pool for cashless billing</div>
+    </div>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="clinical-table">
+      <thead>
+        <tr>
+          <th>Company / Partner</th>
+          <th>Category</th>
+          <th>Monthly Credit Limit</th>
+          <th>Utilized Credit</th>
+          <th>Available Credit</th>
+          <th>Utilization (%)</th>
+          <th>Point of Contact</th>
+          <th>Status</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="corporatePartnersBody">
+        <tr><td colspan="9" style="text-align:center; padding:1.5rem;">Loading corporate tie-ups...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- Section 2: Staff User Directory (Admin & Super Admin) -->
+<div class="card" style="margin-bottom:2rem;">
+  <div class="card-header">
+    <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem;">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span>Staff User Directory &amp; RBAC Roles</span>
+    </h3>
+    <button class="btn btn-primary btn-sm" onclick="openModal('createUserModal')" style="display:inline-flex; align-items:center; gap:0.35rem;">
+      <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      <span>Add Staff User</span>
+    </button>
+  </div>
+
+  <div class="table-wrapper" style="max-height:350px;">
+    <table class="clinical-table">
+      <thead>
+        <tr>
+          <th>Username</th>
+          <th>Full Name</th>
+          <th>Role</th>
+          <th>Department</th>
+          <th>Email</th>
+          <th>Status</th>
+          {% if user and user.role == 'SUPER_ADMIN' %}
+            <th>Actions</th>
+          {% endif %}
+        </tr>
+      </thead>
+      <tbody id="usersTableBody">
+        <tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Loading user directory...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if user and user.role == 'SUPER_ADMIN' %}
+<!-- Section 3: Super Admin Master Configuration Control Panel (Visible Only to SUPER_ADMIN) -->
+<div class="card" style="border:1px solid var(--primary-200); margin-bottom:2rem;">
+  <div class="card-header" style="background:rgba(37, 99, 235, 0.03);">
+    <h3 class="card-title" style="display:flex; align-items:center; gap:0.5rem; color:var(--primary-700);">
+      <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+      <span>Super Admin Master Configuration Control Panel</span>
+    </h3>
+    <div style="display:flex; gap:0.5rem;">
+      <button class="btn btn-danger btn-sm" onclick="handleSystemPurge()" style="display:inline-flex; align-items:center; gap:0.35rem;">
+        <svg class="icon icon-sm" viewBox="0 0 24 24" fill="none" stroke="currentColor"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+        <span>Execute System Purge</span>
+      </button>
+      <button class="btn btn-outline btn-sm" onclick="loadAuditLogs()">Refresh Audit Trail</button>
+    </div>
+  </div>
+
+  <div style="padding:1rem;">
+    <h4 style="font-size:var(--font-sm); text-transform:uppercase; color:var(--text-muted); margin-bottom:0.75rem;">
+      Security &amp; Operational Audit Logs
+    </h4>
+    <div class="table-wrapper" style="max-height:350px;">
+      <table class="clinical-table">
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Actor</th>
+            <th>Role</th>
+            <th>Action</th>
+            <th>Resource</th>
+            <th>Details</th>
+          </tr>
+        </thead>
+        <tbody id="auditLogsBody">
+          <tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Loading audit trail...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<!-- Modal: Add New Staff User -->
+<div class="modal-backdrop" id="createUserModal">
+  <div class="modal-dialog" style="max-width:520px;">
+    <div class="modal-header">
+      <h3 class="modal-title">Register New Staff User</h3>
+      <button class="modal-close" onclick="closeModal('createUserModal')">&times;</button>
+    </div>
+    <form id="createUserForm" onsubmit="handleCreateUser(event)" style="display:flex; flex-direction:column; margin:0;">
+      <div class="modal-body">
+        <div class="grid-2">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Username *</label>
+            <input type="text" class="form-control" name="username" placeholder="e.g. dr.mehta" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Password *</label>
+            <input type="password" class="form-control" name="password" placeholder="Min 6 chars" required>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label class="form-label">Full Name *</label>
+          <input type="text" class="form-control" name="full_name" placeholder="e.g. Dr. Ramesh Mehta" required>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label class="form-label">Email Address *</label>
+          <input type="email" class="form-control" name="email" placeholder="staff@cityhospital.org" required>
+        </div>
+
+        <div class="grid-2">
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Role *</label>
+            <select class="form-control" name="role" required>
+              {% if user and user.role == 'SUPER_ADMIN' %}
+                <option value="SUPER_ADMIN">Super Administrator (* All Privileges)</option>
+              {% endif %}
+              <option value="ADMIN">Hospital Administrator</option>
+              <option value="DOCTOR">Consulting Doctor</option>
+              <option value="NURSE">Ward Nurse</option>
+              <option value="RECEPTIONIST">Receptionist</option>
+              <option value="PHARMACIST">Pharmacist</option>
+              <option value="LAB_TECH">Lab Technician</option>
+              <option value="CASHIER">Cashier &amp; Billing Clerk</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0.75rem;">
+            <label class="form-label">Department</label>
+            <input type="text" class="form-control" name="department" placeholder="e.g. Cardiology">
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" onclick="closeModal('createUserModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Create User Account</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal 2: Dynamic Pre-Built SQL KPI Studio Catalog -->
+<div class="modal-backdrop" id="addCustomKpiModal">
+  <div class="modal-dialog modal-dialog-lg" style="max-width:800px; max-height:88vh; display:flex; flex-direction:column;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title" style="display:flex; align-items:center; gap:0.5rem;">
+          <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M12 8v8M8 12h8"/></svg>
+          <span>Dynamic KPI Studio &mdash; Pre-Built SQL Catalog</span>
+        </h3>
+        <p style="font-size:var(--font-xs); color:var(--text-muted); margin:0.2rem 0 0 0;">
+          Select from curated high-performance SQL analytical queries to pin dynamic widgets to the top of your dashboard.
+        </p>
+      </div>
+      <button class="modal-close" onclick="closeModal('addCustomKpiModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto; flex:1 1 auto; min-height:0; max-height:calc(88vh - 140px);">
+      <div id="kpiCatalogList" style="display:flex; flex-direction:column; gap:0.75rem;">
+        <!-- Loaded dynamically from /api/corporate/kpis/catalog -->
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeModal('addCustomKpiModal')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal 3: Register New Corporate / Insurance Partner -->
+<div class="modal-backdrop" id="createCorporateModal">
+  <div class="modal-dialog" style="max-width:580px; max-height:88vh; display:flex; flex-direction:column;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Register Corporate Partner / Insurance TPA</h3>
+        <p style="font-size:var(--font-xs); color:var(--text-muted); margin:0.2rem 0 0 0;">Configure corporate credit limit and tie-up terms.</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('createCorporateModal')">&times;</button>
+    </div>
+    <form id="createCorporateForm" style="display:flex; flex-direction:column; flex:1 1 auto; min-height:0; overflow:hidden;">
+      <div class="modal-body" style="overflow-y:auto; flex:1 1 auto; min-height:0;">
+        <div class="grid-2" style="margin-bottom:0.75rem;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Partner / Company Name *</label>
+            <input type="text" class="form-control" name="name" placeholder="e.g. Star Health Insurance" required>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Partner Code / Identifier *</label>
+            <input type="text" class="form-control" name="code" placeholder="e.g. STAR-HLTH-01" required>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:0.75rem;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Category *</label>
+            <select class="form-control" name="category" required>
+              <option value="INSURANCE_TPA">Insurance TPA (Third Party Admin)</option>
+              <option value="CORPORATE_TIEUP">Corporate Direct Client Tie-up</option>
+              <option value="GOVERNMENT_SCHEME">Government / PSU Scheme (CGHS/ECHS)</option>
+            </select>
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Monthly Credit Limit (₹) *</label>
+            <input type="number" class="form-control" name="monthly_credit_limit" min="0" step="any" placeholder="e.g. 500000" required>
+          </div>
+        </div>
+
+        <div class="grid-2" style="margin-bottom:0.75rem;">
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Contact Person</label>
+            <input type="text" class="form-control" name="contact_person" placeholder="e.g. Rahul Deshmukh">
+          </div>
+          <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Contact Phone</label>
+            <input type="text" class="form-control" name="contact_phone" placeholder="e.g. +91 98112 33445">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0.75rem;">
+          <label class="form-label">Claims / Pre-Auth Email</label>
+          <input type="email" class="form-control" name="contact_email" placeholder="claims@partner.com">
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label">Contract / MOU Terms &amp; Notes</label>
+          <textarea class="form-control" name="notes" rows="2" placeholder="e.g. Cashless pre-authorization required within 2 hours of admission."></textarea>
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('createCorporateModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Save Corporate Partner</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal 4: Edit Corporate Monthly Credit Limit -->
+<div class="modal-backdrop" id="editCorporateLimitModal">
+  <div class="modal-dialog" style="max-width:480px;">
+    <div class="modal-header">
+      <div>
+        <h3 class="modal-title">Adjust Monthly Credit Limit</h3>
+        <p id="editLimitPartnerName" style="font-size:var(--font-xs); color:var(--text-muted); margin:0.2rem 0 0 0;">Partner Name</p>
+      </div>
+      <button class="modal-close" onclick="closeModal('editCorporateLimitModal')">&times;</button>
+    </div>
+    <form id="editCorporateLimitForm" onsubmit="handleUpdateLimitSubmit(event)" style="margin:0;">
+      <input type="hidden" id="editLimitClientId">
+      <div class="modal-body">
+        <div style="background:var(--bg-surface-alt); border-radius:8px; padding:0.75rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.8rem; color:var(--text-muted);">Current Monthly Limit:</span>
+          <strong id="editLimitCurrentVal" style="color:var(--text-main); font-size:1rem;">₹0.00</strong>
+        </div>
+
+        <div class="form-group" style="margin-bottom:1rem;">
+          <label class="form-label" for="newMonthlyLimitInput">New Monthly Credit Limit (₹) *</label>
+          <input type="number" id="newMonthlyLimitInput" class="form-control" min="0" step="any" required>
+          <small style="color:var(--text-muted); font-size:0.75rem;">Admins &amp; Superadmins can update credit limits dynamically based on hospital agreements.</small>
+        </div>
+
+        <div class="form-group" style="margin-bottom:0;">
+          <label class="form-label" for="editLimitNotesInput">Reason / Audit Remarks</label>
+          <input type="text" id="editLimitNotesInput" class="form-control" placeholder="e.g. Annual renewal limit enhancement">
+        </div>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" class="btn btn-outline" onclick="closeModal('editCorporateLimitModal')">Cancel</button>
+        <button type="submit" class="btn btn-primary">Update Credit Limit</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal 5: View Corporate Partner Invoices -->
+<div class="modal-backdrop" id="viewCorporateInvoicesModal">
+  <div class="modal-dialog modal-dialog-lg" style="max-height:88vh; display:flex; flex-direction:column;">
+    <div class="modal-header">
+      <h3 id="viewCorpInvoicesTitle" class="modal-title">Billed Corporate Invoices</h3>
+      <button class="modal-close" onclick="closeModal('viewCorporateInvoicesModal')">&times;</button>
+    </div>
+    <div class="modal-body" style="overflow-y:auto; flex:1 1 auto; min-height:0;">
+      <div class="table-wrapper">
+        <table class="clinical-table">
+          <thead>
+            <tr>
+              <th>Invoice #</th>
+              <th>Patient &amp; MRN</th>
+              <th>Policy / Employee ID</th>
+              <th>Net Bill (₹)</th>
+              <th>Claim Amount (₹)</th>
+              <th>Claim Status</th>
+              <th>Billed Date</th>
+            </tr>
+          </thead>
+          <tbody id="viewCorpInvoicesBody">
+            <!-- Dynamically populated -->
+          </tbody>
+          <tfoot id="viewCorpInvoicesFoot">
+            <!-- Summary tally row -->
+          </tfoot>
+        </table>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn btn-outline" onclick="closeModal('viewCorporateInvoicesModal')">Close</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/chart.min.js"></script>
+<script src="/static/js/commission.js?v=staff-ux-3"></script>
+<script src="/static/js/corporate_admin.js?v=corp-kpi-1"></script>
+<script>
+const isSuperAdmin = {{ 'true' if user and user.role == 'SUPER_ADMIN' else 'false' }};
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadKpis();
+  loadUsers();
+  if (isSuperAdmin) {
+    loadAuditLogs();
+  }
+});
+
+async function loadKpis() {
+  try {
+    const kpi = await apiFetch("/api/billing/analytics/kpis");
+    document.getElementById("kpiRevenue").innerText = `₹${kpi.total_revenue.toFixed(2)}`;
+    document.getElementById("kpiPending").innerText = `₹${kpi.pending_revenue.toFixed(2)}`;
+    document.getElementById("kpiOccupancy").innerText = `${kpi.occupancy_rate_pct}%`;
+    document.getElementById("kpiBedCount").innerText = `${kpi.occupied_beds} of ${kpi.total_beds} beds occupied`;
+    document.getElementById("kpiPatients").innerText = kpi.total_patients;
+    document.getElementById("kpiTodayAppts").innerText = `${kpi.today_appointments} OPD visits today`;
+  } catch (err) {}
+}
+
+async function loadUsers() {
+  const tbody = document.getElementById("usersTableBody");
+  if (!tbody) return;
+  try {
+    const users = await apiFetch("/api/auth/users");
+    tbody.innerHTML = users.map(u => `
+      <tr>
+        <td><strong>${u.username}</strong></td>
+        <td>${u.full_name}</td>
+        <td><span class="badge ${u.role === 'SUPER_ADMIN' ? 'badge-danger' : u.role === 'ADMIN' ? 'badge-info' : 'badge-neutral'}">${u.role}</span></td>
+        <td>${u.department}</td>
+        <td>${u.email}</td>
+        <td><span class="badge badge-success">Active</span></td>
+        ${isSuperAdmin ? `
+          <td>
+            <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${u.username}')" style="padding:0.2rem 0.5rem; font-size:var(--font-xs);">
+              Delete
+            </button>
+          </td>
+        ` : ''}
+      </tr>
+    `).join("");
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-muted); padding:1rem;">Access restricted to authorized administrators.</td></tr>`;
+  }
+}
+
+async function handleCreateUser(e) {
+  e.preventDefault();
+  const form = e.target;
+  const payload = {
+    username: form.username.value,
+    password: form.password.value,
+    full_name: form.full_name.value,
+    email: form.email.value,
+    role: form.role.value,
+    department: form.department.value || null,
+    consultation_fee: 500
+  };
+
+  try {
+    await apiFetch("/api/auth/users", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+    showToast(`User ${payload.username} registered successfully!`, "success");
+    closeModal("createUserModal");
+    form.reset();
+    loadUsers();
+  } catch (err) {
+    // Handled by apiFetch
+  }
+}
+
+async function deleteUser(userId, username) {
+  if (!confirm(`Are you sure you want to permanently delete user account '${username}'? This destructive operation cannot be undone.`)) {
+    return;
+  }
+  try {
+    await apiFetch(`/api/auth/users/${userId}`, { method: "DELETE" });
+    showToast(`User account '${username}' deleted.`, "info");
+    loadUsers();
+  } catch (err) {
+    // Handled by apiFetch
+  }
+}
+
+async function loadAuditLogs() {
+  const tbody = document.getElementById("auditLogsBody");
+  if (!tbody) return;
+  try {
+    const logs = await apiFetch("/api/auth/audit-logs");
+    if (!logs || logs.length === 0) {
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-muted); padding:1.5rem;">No security audit events recorded yet.</td></tr>`;
+      return;
+    }
+    tbody.innerHTML = logs.map(l => `
+      <tr>
+        <td style="font-size:var(--font-xs);">${l.timestamp}</td>
+        <td><strong>${l.actor_name}</strong></td>
+        <td><span class="badge badge-neutral">${l.actor_role}</span></td>
+        <td><span class="badge ${l.action.includes('PURGE') || l.action.includes('DELETE') ? 'badge-danger' : 'badge-info'}">${l.action}</span></td>
+        <td>${l.resource}</td>
+        <td style="font-size:var(--font-xs); color:var(--text-muted);">${l.details || '-'}</td>
+      </tr>
+    `).join("");
+  } catch (err) {}
+}
+
+async function handleSystemPurge() {
+  if (!confirm("Execute master database system purge and integrity check? This will record a high-severity security audit log.")) {
+    return;
+  }
+  try {
+    const res = await apiFetch("/api/auth/system/purge", { method: "POST" });
+    showToast(res.message, "success");
+    loadAuditLogs();
+  } catch (err) {
+    showToast(err.message || "System purge failed.", "error");
+  }
+}
+</script>
+{% endblock %}
+

@@ -1,0 +1,94 @@
+<header class="app-header">
+  <div class="header-container">
+    <div class="brand-wrapper">
+      <span class="brand-logo" style="display:inline-flex; align-items:center; color:var(--primary-600);">
+        <svg class="icon icon-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 22s8-4 8-10V5L12 2 4 5v7c0 6 8 10 8 10z"/>
+          <line x1="12" y1="8" x2="12" y2="16"/>
+          <line x1="8" y1="12" x2="16" y2="12"/>
+        </svg>
+      </span>
+      <div>
+        <a href="{{ role_home if role_home else '/' }}" style="text-decoration:none;">
+          <div class="brand-name">{{ settings.HOSPITAL_NAME }}</div>
+        </a>
+      </div>
+    </div>
+
+    <nav aria-label="Main navigation">
+      <ul class="nav-links">
+        {% if not user %}
+          <li><a href="/" class="nav-link {% if request.url.path == '/' %}active{% endif %}">Home</a></li>
+        {% elif user.role == 'SUPER_ADMIN' %}
+          <li><a href="/admin" class="nav-link {% if request.url.path == '/admin' %}active{% endif %}">Administration</a></li>
+          <li class="nav-menu-item">
+            <details class="nav-menu">
+              <summary class="nav-link">Work areas</summary>
+              <div class="nav-menu-panel">
+                <a href="/reception">Reception</a><a href="/doctor">Doctor</a><a href="/nurse">Nursing</a>
+                <a href="/lab">Laboratory</a><a href="/pharmacy">Pharmacy</a><a href="/billing">Billing</a>
+              </div>
+            </details>
+          </li>
+        {% elif user.role == 'ADMIN' %}
+          <li><a href="/admin" class="nav-link {% if request.url.path == '/admin' %}active{% endif %}">Hospital overview</a></li>
+          <li><a href="/lab" class="nav-link {% if request.url.path == '/lab' %}active{% endif %}">Diagnostics &amp; Radiology</a></li>
+        {% elif user.role == 'RECEPTIONIST' %}
+          <li><a href="/reception" class="nav-link {% if request.url.path == '/reception' %}active{% endif %}">Reception desk</a></li>
+        {% elif user.role == 'DOCTOR' %}
+          <li><a href="/doctor" class="nav-link {% if request.url.path == '/doctor' %}active{% endif %}">My clinic</a></li>
+          <li><a href="/lab" class="nav-link {% if request.url.path == '/lab' %}active{% endif %}">Diagnostics &amp; Radiology</a></li>
+        {% elif user.role == 'NURSE' %}
+          <li><a href="/nurse" class="nav-link {% if request.url.path == '/nurse' %}active{% endif %}">Nursing station</a></li>
+        {% elif user.role == 'PHARMACIST' %}
+          <li><a href="/pharmacy" class="nav-link {% if request.url.path == '/pharmacy' %}active{% endif %}">Pharmacy worklist</a></li>
+        {% elif user.role in ['LAB_TECH', 'LAB'] %}
+          <li><a href="/lab" class="nav-link {% if request.url.path == '/lab' %}active{% endif %}">Diagnostics &amp; Radiology</a></li>
+        {% elif user.role == 'CASHIER' %}
+          <li><a href="/billing" class="nav-link {% if request.url.path == '/billing' %}active{% endif %}">Cashier desk</a></li>
+        {% endif %}
+      </ul>
+    </nav>
+
+    <div class="user-status">
+      {% if user %}
+        <span class="user-badge">{{ user.full_name }} · {{ user.role|replace('_', ' ')|title }}</span>
+        <button class="btn btn-outline btn-sm" onclick="logoutStaff()">Sign out</button>
+      {% else %}
+        <a href="/login" class="btn btn-primary btn-sm">Staff Login</a>
+      {% endif %}
+    </div>
+  </div>
+</header>
+
+<script>
+function logoutStaff() {
+  // 1. Immediately trigger real-time broadcast and storage sync across all open tabs
+  if (window.HMS_AUTH) {
+    window.HMS_AUTH.notifyLogout();
+  } else {
+    try {
+      localStorage.removeItem("hms_session_active");
+      localStorage.setItem("hms_auth_sync", JSON.stringify({ action: "LOGOUT", time: Date.now() }));
+    } catch(e) {}
+  }
+
+  // 2. Clear client-side session cookies immediately
+  document.cookie = "access_token=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax;";
+  document.cookie = "session_active=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT; SameSite=Lax;";
+
+  // 3. Fire background beacon to server to clear server-side cookies
+  try {
+    if (navigator.sendBeacon) {
+      navigator.sendBeacon("/api/auth/logout");
+    } else {
+      fetch("/api/auth/logout", { method: "POST", keepalive: true });
+    }
+  } catch (e) {
+    fetch("/api/auth/logout", { method: "POST" });
+  }
+
+  // 4. Instant navigation to login with zero lag
+  window.location.replace("/login");
+}
+</script>

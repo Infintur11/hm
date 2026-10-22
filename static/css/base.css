@@ -1,0 +1,186 @@
+/* ==========================================================================
+   AegisHealth HMS - Base Layout & Reset
+   ========================================================================== */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--font-base);
+  line-height: 1.5;
+  color: var(--text-main);
+  background-color: var(--bg-app);
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+a {
+  color: var(--primary-600);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+/* App Header & Navbar */
+.app-header {
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  box-shadow: var(--shadow-sm);
+}
+
+.header-container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0.75rem 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5rem;
+}
+
+.brand-wrapper {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.brand-logo {
+  font-size: 1.5rem;
+  line-height: 1;
+}
+
+.brand-name {
+  font-size: var(--font-md);
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+}
+
+.brand-tag {
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  list-style: none;
+}
+
+.nav-link {
+  font-size: var(--font-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  padding: 0.5rem 0.75rem;
+  border-radius: var(--radius-md);
+  transition: all 0.15s ease;
+  text-decoration: none;
+}
+
+.nav-link:hover {
+  background-color: var(--bg-surface-alt);
+  color: var(--primary-600);
+  text-decoration: none;
+}
+
+.nav-link.active {
+  background-color: var(--primary-50);
+  color: var(--primary-700);
+  font-weight: 600;
+}
+
+.user-status {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.user-badge {
+  font-size: var(--font-xs);
+  background-color: var(--bg-surface-alt);
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-subtle);
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+/* Main Layout Area */
+.main-content {
+  flex: 1;
+  max-width: var(--container-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: 1.5rem;
+}
+
+.page-header {
+  margin-bottom: 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.page-title {
+  font-size: var(--font-xl);
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.page-subtitle {
+  font-size: var(--font-sm);
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
+/* Footer */
+.app-footer {
+  background-color: var(--bg-surface);
+  border-top: 1px solid var(--border-subtle);
+  padding: 1rem 1.5rem;
+  margin-top: auto;
+  font-size: var(--font-xs);
+  color: var(--text-muted);
+  text-align: center;
+}
+
+/* Compact role menus keep the shared header easy to scan. */
+.nav-menu { position: relative; }
+.nav-menu summary { list-style: none; cursor: pointer; }
+.nav-menu summary::-webkit-details-marker { display: none; }
+.nav-menu summary::after { content: " ▾"; font-size: .8em; }
+.nav-menu-panel {
+  position: absolute; top: calc(100% + .4rem); left: 0; z-index: 60;
+  min-width: 190px; padding: .35rem; background: var(--bg-surface);
+  border: 1px solid var(--border-subtle); border-radius: var(--radius-md); box-shadow: var(--shadow-md);
+}
+.nav-menu-panel a { display: block; padding: .65rem .8rem; border-radius: var(--radius-sm); color: var(--text-main); }
+.nav-menu-panel a:hover { background: var(--bg-surface-alt); text-decoration: none; }
+
+@media (max-width: 900px) {
+  .header-container { flex-wrap: wrap; gap: .5rem 1rem; padding: .6rem 1rem; }
+  .header-container nav { order: 3; width: 100%; }
+  .nav-links { flex-wrap: wrap; gap: .2rem; }
+  .user-status { margin-left: auto; }
+  .main-content { padding: 1rem; }
+}
+
+@media (max-width: 560px) {
+  .user-badge { max-width: 52vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .page-header { flex-direction: column; }
+  .nav-links { width: 100%; }
+  .nav-link { padding: .45rem .55rem; }
+}

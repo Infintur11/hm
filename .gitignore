@@ -1,0 +1,12 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest & Environment
+.pytest_cache/
+.env
+
+# macOS
+.DS_Store
+*.qlpreview/
